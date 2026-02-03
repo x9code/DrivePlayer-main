@@ -1,0 +1,16 @@
+{
+    "name": "DrivePlayer",
+    "short_name": "DrivePlayer",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#121212",
+    "theme_color": "#000000",
+    "description": "Stream music directly from your Google Drive.",
+    "icons": [
+        {
+            "src": "/icon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

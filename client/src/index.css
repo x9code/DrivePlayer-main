@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #050505; /* Prevent white flashes */
+    color: white;
+  }
+}
+
+/* VisionOS Glass Utilities */
+/* Glass Surface (Mini Player & Top Bar) */
+.glass-surface {
+  @apply bg-transparent border border-white/5 transition-all duration-300;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
+}
+
+.glass-button {
+  @apply bg-white/5 hover:bg-white/15 active:bg-white/20 backdrop-blur-md transition-all duration-200 border border-white/5;
+}
+
+@media (max-width: 768px) {
+
+  .glass-panel,
+  .glass-surface {
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+    background: rgba(20, 20, 20, 0.8) !important;
+    /* Performance fallback for mobile */
+  }
+}
+
+/* Custom Scrollbar - Thinner & Cleaner */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 100vh;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Range Slider - Apple Style */
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+  margin-top: -6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 100vh;
+}
+
+/* Force override Tailwind's cached primary color */
+.text-primary {
+  color: rgb(var(--theme-color)) !important;
+}
+
+.bg-primary {
+  background-color: rgb(var(--theme-color)) !important;
+}
+
+.border-t-primary {
+  border-top-color: rgb(var(--theme-color)) !important;
+}
+
+.focus\:ring-primary:focus {
+  --tw-ring-color: rgb(var(--theme-color)) !important;
+  border-color: rgb(var(--theme-color)) !important;
+}
+
+/* Equalizer Animation */
+@keyframes equalize {
+  0% {
+    height: 30%;
+  }
+
+  50% {
+    height: 100%;
+  }
+
+  100% {
+    height: 30%;
+  }
+}
