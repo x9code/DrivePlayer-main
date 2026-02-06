@@ -41,6 +41,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const analyserRef = useRef(null);
     const sourceRef = useRef(null);
     const animationRef = useRef(null);
+    const prevValuesRef = useRef([]); // Store previous frame values for physics
 
     const [artError, setArtError] = useState(false);
 
@@ -225,50 +226,112 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
             const width = window.innerWidth;
             const height = 300;
-            const renderBars = visualizerBars; // User setting
-            const barWidth = (width / renderBars);
-            // Limit frequency range to bass/mids for better visuals (0.6 instead of 0.7)
-            const maxFreqIndex = Math.floor(bufferLength * 0.6);
+            // Configuration
+            const pointsCount = 60;
+            const points = [];
+            const center = pointsCount / 2;
 
-            const gradient = ctx.createLinearGradient(0, 0, 0, height);
-            const color = themeColor || '29, 185, 84';
-            gradient.addColorStop(0, `rgba(${color}, 0.8)`);
-            gradient.addColorStop(1, `rgba(${color}, 0.05)`);
-            ctx.fillStyle = gradient;
+            // Ensure ref is initialized
+            if (prevValuesRef.current.length !== pointsCount + 1) {
+                prevValuesRef.current = new Array(pointsCount + 1).fill(0);
+            }
+            const prevValues = prevValuesRef.current;
 
-            // Simplified Shadow (Optimization)
-            ctx.shadowBlur = 0; // Disable heavy blur by default or reduce it
-            // ctx.shadowColor = `rgba(${themeColor || '29, 185, 84'}, 0.3)`; 
+            // 1. Generate Points (Physics + Symmetrical)
+            for (let i = 0; i <= pointsCount; i++) {
+                const distFromCenter = Math.abs(i - center) / center;
+                const freqIndex = Math.floor(analyserRef.current.frequencyBinCount * Math.pow(distFromCenter, 2.5)); // Use analyserRef.current.frequencyBinCount
 
-            for (let i = 0; i < renderBars; i++) {
-                const percent = i / renderBars;
-                // Logarithmic index for better frequency distribution
-                const index = Math.floor(maxFreqIndex * Math.pow(percent, 2.2));
+                let rawValue = dataArray[freqIndex] || 0;
 
-                let value = dataArray[index] || 0;
-
-                // Simple averaging for smoothness
-                if (index > 0 && index < bufferLength - 1) {
-                    value = (dataArray[index - 1] + dataArray[index] + dataArray[index + 1]) / 3;
+                // Spatial Smooth (Neighbor average)
+                if (freqIndex > 0 && freqIndex < bufferLength - 1) {
+                    rawValue = (dataArray[freqIndex - 1] + dataArray[freqIndex] + dataArray[freqIndex + 1]) / 3;
                 }
 
-                const barHeight = (value / 255) * (height * 0.5);
+                // --- PHYSICS ENGINE ---
+                // Get previous frame value
+                let current = prevValues[i] || 0;
 
-                if (barHeight > 2) {
-                    const x = i * barWidth;
-                    const w = Math.max(1, barWidth - 1);
-                    const y = height - barHeight;
-
-                    // Draw Rounded Bar
-                    ctx.beginPath();
-                    if (w > 3) {
-                        const radius = 2; // Fixed small radius for performance
-                        ctx.roundRect(x, y, w, barHeight, [radius, radius, 0, 0]);
+                // Apply Attack/Decay
+                if (isPlaying) {
+                    if (rawValue > current) {
+                        // Attack: Fast rise (0.85) - Very responsive
+                        current += (rawValue - current) * 0.85;
                     } else {
-                        ctx.rect(x, y, w, barHeight);
+                        // Decay: Faster fall (0.14) - Less floaty
+                        current -= (current - rawValue) * 0.14;
                     }
-                    ctx.fill();
+                } else {
+                    // Force decay when paused
+                    current *= 0.9;
                 }
+
+                prevValues[i] = current; // Save state
+                const value = current;
+                // ---------------------
+
+                const mask = Math.pow(1 - distFromCenter, 3);
+                const pointY = height - ((value / 255) * (height * 0.45) * mask); // Increase height slightly (0.45)
+                const pointX = (i / pointsCount) * width;
+
+                points.push({ x: pointX, y: pointY });
+            }
+
+            // 2. Draw Main Curve
+            ctx.beginPath();
+            if (points.length > 0) {
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p0 = points[i];
+                    const p1 = points[i + 1];
+                    const midX = (p0.x + p1.x) / 2;
+                    const midY = (p0.y + p1.y) / 2;
+                    ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+                }
+                ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+            }
+
+            // Glassy Stroke
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = `rgba(255, 255, 255, 0.85)`; // White frost
+            ctx.shadowColor = `rgba(180, 220, 255, 0.8)`;  // Blue glow
+            ctx.shadowBlur = 25;
+            ctx.stroke();
+
+            // 3. Fill (Frosted Gradient)
+            ctx.lineTo(width, height);
+            ctx.lineTo(0, height);
+            ctx.closePath();
+
+            ctx.shadowBlur = 0;
+            const gradient = ctx.createLinearGradient(0, height / 2, 0, height);
+            gradient.addColorStop(0, `rgba(255, 255, 255, 0.25)`); // Stronger frost
+            gradient.addColorStop(0.5, `rgba(255, 255, 255, 0.1)`);
+            gradient.addColorStop(1, `rgba(255, 255, 255, 0.02)`);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // 4. Secondary Reflection Line (Subtle Depth)
+            ctx.beginPath();
+            if (points.length > 0) {
+                ctx.moveTo(points[0].x, points[0].y + 6);
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p0 = points[i];
+                    const p1 = points[i + 1];
+                    const midX = (p0.x + p1.x) / 2;
+                    const midY = (p0.y + p1.y) / 2;
+                    // Offset Y by 6px
+                    ctx.quadraticCurveTo(p0.x, p0.y + 6, midX, midY + 6);
+                }
+                ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y + 6);
+
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = `rgba(180, 220, 255, 0.2)`;
+                ctx.shadowBlur = 0;
+                ctx.stroke();
             }
         };
 
