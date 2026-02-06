@@ -328,13 +328,14 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
         <>
             {/* FLOATING CAPSULE PLAYER (Mini) */}
             <div
-                className={`fixed z-50 transition-all duration-300 cubic-bezier(0.32, 0.72, 0, 1) overflow-hidden
-                    left-1/2 -translate-x-1/2
+                className={`fixed z-50 transition-all duration-500 cubic-bezier(0.32, 0.72, 0, 1) overflow-hidden
+                    left-1/2 -translate-x-1/2 shadow-2xl
                     ${isExpanded
                         ? 'bottom-0 w-full h-full rounded-none bg-black' // Expanded: Full width/height, 0 bottom
-                        : 'bottom-6 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:scale-[1.02]' // Mini: Floating
+                        : 'bottom-6 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini: Floating with active press
                     } text-white`}
                 onClick={handlePlayerClick}
+                style={{ willChange: 'width, height, bottom, border-radius' }} // Optimize painting
             >
                 {/* Visualizer Background (Only visible when Expanded) */}
                 {isExpanded && (
@@ -356,7 +357,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 )}
 
                 {/* --- MINI CONTENT --- */}
-                <div className={`absolute inset-0 flex items-center justify-between px-2 pr-6 transition-all duration-300 ${isExpanded ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100 scale-100'}`}>
+                <div className={`absolute inset-0 flex items-center justify-between px-2 pr-6 transition-all duration-500 ease-out ${isExpanded ? 'opacity-0 pointer-events-none scale-90 translate-y-4' : 'opacity-100 scale-100 translate-y-0 delay-100'}`}>
 
                     {/* Left: Art & Text */}
                     <div className="flex items-center gap-3 overflow-hidden flex-1">
@@ -460,10 +461,10 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         </div>
                     </div>
 
-                    {/* Main Content */}
-                    <div className="flex flex-col items-center w-full max-w-md gap-8 z-10">
+                    {/* Main Content Container with Staggered Entry */}
+                    <div className={`flex flex-col items-center w-full max-w-md gap-8 z-10 transition-all duration-700 delay-100 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                         {/* Artwork */}
-                        <div className="w-72 h-72 md:w-96 md:h-96 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 group relative">
+                        <div className="w-72 h-72 md:w-96 md:h-96 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 group relative transform transition-transform duration-500 hover:scale-[1.02]">
                             {!artError ? (
                                 <img
                                     src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
