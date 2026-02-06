@@ -528,6 +528,18 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     <div className={`flex flex-col items-center w-full max-w-md gap-8 z-10 transition-all duration-700 delay-100 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                         {/* Artwork */}
                         <div className="w-72 h-72 md:w-96 md:h-96 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 group relative transform transition-transform duration-500 hover:scale-[1.02]">
+                            {/* Like Button Overlay */}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
+                                className={`absolute top-4 right-4 z-20 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg
+                                    ${isLiked
+                                        ? 'bg-black/30 text-primary shadow-primary/20 scale-105'
+                                        : 'bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105'}
+                                `}
+                            >
+                                {isLiked ? <IoHeart size={22} /> : <IoHeartOutline size={22} />}
+                            </button>
+
                             {!artError ? (
                                 <img
                                     src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
@@ -546,12 +558,6 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         <div className="text-center space-y-1">
                             <div className="flex items-center justify-center gap-3">
                                 <h2 className="text-3xl font-bold text-white truncate max-w-xs">{meta.title || (cleanTitle ? cleanTitle(currentSong.name) : currentSong.name)}</h2>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
-                                    className={`transition-colors ${isLiked ? 'text-primary' : 'text-zinc-500 hover:text-white'}`}
-                                >
-                                    {isLiked ? <IoHeart size={24} /> : <IoHeartOutline size={24} />}
-                                </button>
                             </div>
                             <p className="text-lg text-zinc-400 font-medium">{meta.artist || 'Unknown Artist'}</p>
                         </div>
