@@ -914,6 +914,8 @@ function App() {
           onFolderClick={handleFolderClick}
           onFolderPlay={handleFolderPlay}
           cleanTitle={cleanTitle}
+          likedSongs={likedSongs}
+          toggleLike={toggleLike}
         />
       </main>
 

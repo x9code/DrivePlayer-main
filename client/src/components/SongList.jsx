@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp } from 'react-icons/io5';
+import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline } from 'react-icons/io5';
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -70,7 +70,7 @@ const Equalizer = () => (
     </div>
 );
 
-const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, formatSize }) => {
+const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, formatSize, isLiked, toggleLike }) => {
     return (
         <div
             onClick={() => onPlay(file)}
@@ -101,13 +101,24 @@ const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, format
 
             {/* Size/Duration Column */}
             <div className="text-xs font-medium text-zinc-500 group-hover:text-zinc-400 text-right font-variant-numeric tabular-nums flex items-center justify-end gap-1">
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleLike(file); }}
+                    className={`mr-4 transition-all duration-200 hover:scale-110 focus:outline-none
+                        ${isLiked
+                            ? 'opacity-100 text-primary'
+                            : 'opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-white'}
+                    `}
+                    title={isLiked ? "Remove from Favorites" : "Add to Favorites"}
+                >
+                    {isLiked ? <IoHeart size={16} /> : <IoHeartOutline size={16} />}
+                </button>
                 {formatSize(file.size)}
             </div>
         </div>
     );
 });
 
-const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loading, cleanTitle }) => {
+const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loading, cleanTitle, likedSongs = [], toggleLike }) => {
 
     const [uploading, setUploading] = useState(null); // folderId being uploaded to
     const [cacheBuster, setCacheBuster] = useState(Date.now()); // Force image refresh
@@ -209,6 +220,8 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                                 onPlay={onPlay}
                                 cleanTitle={cleanTitle}
                                 formatSize={formatSize}
+                                isLiked={likedSongs.some(s => s.id === file.id)}
+                                toggleLike={toggleLike}
                             />
                         ))}
                     </div>

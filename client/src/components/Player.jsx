@@ -296,8 +296,10 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.lineWidth = 4;
-            ctx.strokeStyle = `rgba(255, 255, 255, 0.85)`; // White frost
-            ctx.shadowColor = `rgba(180, 220, 255, 0.8)`;  // Blue glow
+            const color = themeColor || '255, 255, 255'; // Fallback to white
+
+            ctx.strokeStyle = `rgba(${color}, 0.95)`; // Theme color stroke
+            ctx.shadowColor = `rgba(${color}, 0.8)`;  // Theme color glow
             ctx.shadowBlur = 25;
             ctx.stroke();
 
@@ -308,9 +310,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
             ctx.shadowBlur = 0;
             const gradient = ctx.createLinearGradient(0, height / 2, 0, height);
-            gradient.addColorStop(0, `rgba(255, 255, 255, 0.25)`); // Stronger frost
-            gradient.addColorStop(0.5, `rgba(255, 255, 255, 0.1)`);
-            gradient.addColorStop(1, `rgba(255, 255, 255, 0.02)`);
+            gradient.addColorStop(0, `rgba(${color}, 0.25)`); // Theme frosting
+            gradient.addColorStop(0.5, `rgba(${color}, 0.1)`);
+            gradient.addColorStop(1, `rgba(${color}, 0.02)`);
             ctx.fillStyle = gradient;
             ctx.fill();
 
@@ -329,7 +331,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y + 6);
 
                 ctx.lineWidth = 2;
-                ctx.strokeStyle = `rgba(180, 220, 255, 0.2)`;
+                ctx.strokeStyle = `rgba(${color}, 0.2)`; // Theme reflection
                 ctx.shadowBlur = 0;
                 ctx.stroke();
             }
