@@ -29,6 +29,7 @@ function App() {
   const [currentFolderId, setCurrentFolderId] = useState(null)
   const [currentFolderName, setCurrentFolderName] = useState('Library'); // Default title
   const rootFolderId = useRef(null); // Track root folder ID to hide back button
+  const mainScrollRef = useRef(null); // Ref for main scroll container
   // --- Queue System ---
   const [queue, setQueue] = useState([]);
 
@@ -556,6 +557,13 @@ function App() {
     fetchFiles(folderId);
   };
 
+  // Reset Scroll on Folder Change
+  useEffect(() => {
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = 0;
+    }
+  }, [files]);
+
   // Listen for song ended event to auto-play next
   useEffect(() => {
     const handleSongEnded = () => {
@@ -896,7 +904,7 @@ function App() {
       </header>
 
       {/* Main Content - Fixed Layout for Glass Effect */}
-      <main className="fixed inset-0 pt-20 overflow-y-auto custom-scrollbar pb-32 z-0">
+      <main ref={mainScrollRef} className="fixed inset-0 pt-20 overflow-y-auto custom-scrollbar pb-32 z-0">
 
         <SongList
           files={sortedFiles}
