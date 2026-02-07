@@ -361,7 +361,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                         {/* Progress Bar */}
                         <div className="w-full space-y-2 group">
-                            <div className="w-full h-1.5 bg-white/10 rounded-full cursor-pointer relative overflow-visible">
+                            <div className="w-full h-1.5 bg-white/20 backdrop-blur-sm rounded-full cursor-pointer relative overflow-visible shadow-inner">
                                 <input
                                     type="range"
                                     min="0"
@@ -371,7 +371,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                 />
                                 <div
-                                    className="h-full bg-primary rounded-full relative"
+                                    className="h-full bg-primary rounded-full relative shadow-[0_0_10px_rgba(var(--theme-color),0.5)]"
                                     style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }}
                                 >
                                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity scale-0 group-hover:scale-100"></div>

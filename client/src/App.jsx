@@ -49,7 +49,7 @@ function App() {
   }, [likedSongs]);
 
   // Theme State
-  const [themeColor, setThemeColor] = useState('29, 185, 84'); // Default Spotify Green
+  const [themeColor, setThemeColor] = useState('224, 133, 224'); // Default Pink-Lavender
 
   useEffect(() => {
     // Apply theme to CSS variable
@@ -86,7 +86,7 @@ function App() {
   // Extract Vibrant Color from Album Art
   useEffect(() => {
     if (!currentSong) {
-      setThemeColor('29, 185, 84');
+      setThemeColor('224, 133, 224');
       return;
     }
 
@@ -140,12 +140,12 @@ function App() {
 
         } catch (e) {
           console.warn("Color extraction failed", e);
-          setThemeColor('29, 185, 84');
+          setThemeColor('224, 133, 224');
         }
       };
 
       img.onerror = () => {
-        setThemeColor('29, 185, 84');
+        setThemeColor('224, 133, 224');
       };
     }, 500); // 500ms delay
 
