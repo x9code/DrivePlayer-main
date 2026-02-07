@@ -8,9 +8,9 @@
     "description": "Stream music directly from your Google Drive.",
     "icons": [
         {
-            "src": "/icon.png",
-            "sizes": "512x512",
-            "type": "image/png"
+            "src": "/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
         }
     ]
 }
