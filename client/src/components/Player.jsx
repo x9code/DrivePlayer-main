@@ -1,9 +1,6 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import {
-    IoPlay, IoPause, IoPlaySkipForward, IoPlaySkipBack, IoShuffle, IoRepeat,
-    IoHeart, IoHeartOutline, IoVolumeHigh, IoVolumeMute,
-    IoChevronDown, IoResize, IoExpand, IoMusicalNotes
-} from 'react-icons/io5';
+import { IoPlay, IoPause, IoPlaySkipBack, IoPlaySkipForward, IoShuffle, IoRepeat, IoVolumeHigh, IoVolumeMute, IoChevronDown, IoList, IoHeart, IoHeartOutline, IoMusicalNotes, IoResize, IoExpand, IoMusicalNote } from 'react-icons/io5';
+import Lyrics from './Lyrics';
 
 // Use environment variable for API URL in production (Vercel), fall back to relative path (proxy) in dev
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -39,7 +36,16 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
     const [artError, setArtError] = useState(false);
 
-    // Reset error state on new song
+    // Lyrics State
+    const [showLyrics, setShowLyrics] = useState(() => {
+        return localStorage.getItem('driveplayer_lyrics_show') === 'true';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('driveplayer_lyrics_show', showLyrics);
+    }, [showLyrics]);
+
+    // Audio Ref for Lyrics Sync on new song
     useEffect(() => {
         if (currentSong) setArtError(false);
     }, [currentSong]);
@@ -305,8 +311,14 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         </button>
 
                         <div className="flex gap-3">
-                            {/* Settings Toggle */}
-
+                            {/* Lyrics Toggle */}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setShowLyrics(!showLyrics); }}
+                                className={`glass-button h-10 px-4 rounded-full flex items-center justify-center gap-2 transition-all ${showLyrics ? 'bg-primary/20 text-primary border-primary/30' : 'hover:text-white'}`}
+                            >
+                                <IoMusicalNote size={16} />
+                                <span className="text-xs font-bold">Lyrics</span>
+                            </button>
 
                             <button
                                 onClick={(e) => {
@@ -324,31 +336,51 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     {/* Main Content Container with Staggered Entry */}
                     <div className={`flex flex-col items-center w-full max-w-md gap-8 z-10 transition-all duration-700 delay-100 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                         {/* Artwork */}
-                        <div className="w-72 h-72 md:w-96 md:h-96 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 group relative transform transition-transform duration-500 hover:scale-[1.02] isolation-isolate">
-                            {/* Like Button Overlay */}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
-                                className={`absolute top-4 right-4 z-20 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg
-                                    ${isLiked
-                                        ? 'bg-black/30 text-primary shadow-primary/20 scale-105'
-                                        : 'bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105'}
-                                `}
+                        {/* 3D Flip Container */}
+                        <div className="relative w-72 h-72 md:w-96 md:h-96 group perspective-1000">
+                            <div
+                                className={`relative w-full h-full transition-transform duration-700 transform-style-3d ${showLyrics ? 'rotate-y-180' : ''}`}
                             >
-                                {isLiked ? <IoHeart size={22} /> : <IoHeartOutline size={22} />}
-                            </button>
+                                {/* Front Face: Artwork */}
+                                <div className="absolute inset-0 w-full h-full backface-hidden rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate">
+                                    {/* Like Button Overlay */}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
+                                        className={`absolute top-4 right-4 z-20 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg
+                                            ${isLiked
+                                                ? 'bg-black/30 text-primary shadow-primary/20 scale-105'
+                                                : 'bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105'}
+                                        `}
+                                    >
+                                        {isLiked ? <IoHeart size={22} /> : <IoHeartOutline size={22} />}
+                                    </button>
 
-                            {!artError ? (
-                                <img
-                                    src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
-                                    alt="Art"
-                                    className="w-full h-full object-cover rounded-3xl transition-transform duration-700 group-hover:scale-105"
-                                    onError={() => setArtError(true)}
-                                />
-                            ) : (
-                                <div className="w-full h-full rounded-3xl flex items-center justify-center text-zinc-600">
-                                    <IoMusicalNotes size={64} />
+                                    {!artError ? (
+                                        <img
+                                            src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
+                                            alt="Art"
+                                            className="w-full h-full object-cover transition-transform duration-700"
+                                            onError={() => setArtError(true)}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-zinc-900">
+                                            <IoMusicalNotes size={64} />
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+
+                                {/* Back Face: Lyrics */}
+                                <div
+                                    className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/40 backdrop-blur-xl ring-1 ring-white/10 border border-white/5"
+                                >
+                                    <Lyrics
+                                        audioRef={audioRef}
+                                        artist={meta.artist || ''}
+                                        title={meta.title || currentSong.name}
+                                        isExpanded={isExpanded}
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         {/* Text */}
@@ -358,6 +390,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             </div>
                             <p className="text-lg text-zinc-400 font-medium">{meta.artist || 'Unknown Artist'}</p>
                         </div>
+
 
                         {/* Progress Bar */}
                         <div className="w-full space-y-2 group">
