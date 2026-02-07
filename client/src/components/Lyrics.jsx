@@ -145,8 +145,8 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
             }}
         >
             <div
-                className="w-full absolute top-0 left-0 transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] px-4 text-center space-y-8"
-                style={{ transform: `translateY(${translateY}px)` }}
+                className="w-full absolute top-0 left-0 transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] px-4 text-center space-y-8 will-change-transform"
+                style={{ transform: `translate3d(0, ${translateY}px, 0)` }}
             >
                 {lyrics.map((line, index) => {
                     const isActive = index === activeIndex;
@@ -158,13 +158,14 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
                             key={index}
                             ref={el => linesRef.current[index] = el}
                             className={`transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer origin-center
+                                text-3xl font-bold
                                 ${isActive
-                                    ? 'text-white font-bold text-2xl scale-110 blur-none opacity-100 drop-shadow-md'
+                                    ? 'text-white scale-100 blur-none opacity-100 drop-shadow-md'
                                     : isNear
-                                        ? 'text-zinc-300 text-lg scale-100 blur-[0.5px] opacity-70'
+                                        ? 'text-zinc-300 scale-[0.8] blur-[1px] opacity-70'
                                         : isFar
-                                            ? 'text-zinc-500 text-base scale-95 blur-[1px] opacity-40'
-                                            : 'text-zinc-600 text-sm scale-90 blur-[2px] opacity-20'
+                                            ? 'text-zinc-500 scale-[0.6] blur-[2px] opacity-40'
+                                            : 'text-zinc-700 scale-[0.4] blur-[4px] opacity-20'
                                 }
                             `}
                             onClick={() => {
@@ -173,9 +174,7 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
                                     audioRef.current.play();
                                 }
                             }}
-                            style={{
-                                transform: isActive ? 'scale(1.1) translateZ(0)' : 'scale(1) translateZ(0)',
-                            }}
+
                         >
                             {line.text}
                         </p>
