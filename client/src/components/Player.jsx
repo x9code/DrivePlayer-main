@@ -371,7 +371,11 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                                 {/* Back Face: Lyrics */}
                                 <div
-                                    className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/40 backdrop-blur-xl ring-1 ring-white/10 border border-white/5"
+                                    className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-3xl overflow-hidden bg-transparent cursor-default"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowLyrics(false);
+                                    }}
                                 >
                                     <Lyrics
                                         audioRef={audioRef}

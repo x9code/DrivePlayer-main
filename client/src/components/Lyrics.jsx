@@ -7,6 +7,8 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const containerRef = useRef(null);
+    const linesRef = useRef([]);
+    const [translateY, setTranslateY] = useState(0);
 
     // Fetch Lyrics
     useEffect(() => {
@@ -65,37 +67,7 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
         return result;
     };
 
-    // Sync Loop
-    useEffect(() => {
-        if (!lyrics.length || !audioRef.current || !isExpanded) return;
 
-        let animationFrameId;
-
-        const syncLyrics = () => {
-            const currentTime = audioRef.current.currentTime;
-
-            // Find the active line (lines are sorted by time)
-            let newIndex = -1;
-            for (let i = 0; i < lyrics.length; i++) {
-                if (currentTime >= lyrics[i].time) {
-                    newIndex = i;
-                } else {
-                    break;
-                }
-            }
-
-            if (newIndex !== activeIndex) {
-                setActiveIndex(newIndex);
-                scrollToActive(newIndex);
-            }
-
-            animationFrameId = requestAnimationFrame(syncLyrics);
-        };
-
-        animationFrameId = requestAnimationFrame(syncLyrics);
-        return () => cancelAnimationFrame(animationFrameId);
-    }, [lyrics, isExpanded, activeIndex]); // Removed activeIndex from dep to avoid re-bind, handled inside logic? No, need state ref or effect re-run. 
-    // Actually, re-running effect on activeIndex change is okay as long as requestAnimationFrame is stable.
 
     // Better Sync Logic: Only update state when changed to avoid re-renders
     // We need to keep the loop running.
@@ -123,7 +95,6 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
 
             if (newIndex !== activeIndexRef.current) {
                 setActiveIndex(newIndex);
-                scrollToActive(newIndex);
             }
             animationFrameId = requestAnimationFrame(loop);
         }
@@ -132,20 +103,23 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
     }, [lyrics, isExpanded]);
 
 
-    const scrollToActive = (index) => {
-        if (!containerRef.current) return;
-        const activeEl = containerRef.current.children[index];
-        if (activeEl) {
-            activeEl.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-            });
+    // Calculate Scroll Position
+    useEffect(() => {
+        if (activeIndex !== -1 && containerRef.current && linesRef.current[activeIndex]) {
+            const containerHeight = containerRef.current.clientHeight;
+            const activeLine = linesRef.current[activeIndex];
+            const activeLineHeight = activeLine.clientHeight;
+            const activeLineTop = activeLine.offsetTop;
+
+            // Center the active line
+            const newTranslateY = (containerHeight / 2) - (activeLineTop + activeLineHeight / 2);
+            setTranslateY(newTranslateY);
         }
-    };
+    }, [activeIndex, lyrics, isExpanded]);
 
     if (error) {
         return (
-            <div className="w-full text-center py-8 text-zinc-500 text-sm italic">
+            <div className="w-full text-center py-8 text-zinc-500 text-sm italic h-full flex items-center justify-center">
                 {error}
             </div>
         );
@@ -153,7 +127,7 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
 
     if (loading) {
         return (
-            <div className="w-full text-center py-8 text-zinc-500 text-sm animate-pulse">
+            <div className="w-full text-center py-8 text-zinc-500 text-sm animate-pulse h-full flex items-center justify-center">
                 Syncing lyrics...
             </div>
         );
@@ -164,39 +138,50 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
     return (
         <div
             ref={containerRef}
-            className="w-full h-full overflow-y-auto no-scrollbar py-12 px-4 text-center space-y-6 mask-image-gradient"
-            // Use mask-image for fade out top/bottom
+            className="w-full h-full overflow-hidden relative mask-image-gradient"
             style={{
-                maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)'
+                maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)'
             }}
         >
-            {lyrics.map((line, index) => {
-                const isActive = index === activeIndex;
-                const isNear = index === activeIndex - 1 || index === activeIndex + 1;
+            <div
+                className="w-full absolute top-0 left-0 transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] px-4 text-center space-y-8"
+                style={{ transform: `translateY(${translateY}px)` }}
+            >
+                {lyrics.map((line, index) => {
+                    const isActive = index === activeIndex;
+                    const isNear = index === activeIndex - 1 || index === activeIndex + 1;
+                    const isFar = index === activeIndex - 2 || index === activeIndex + 2;
 
-                return (
-                    <p
-                        key={index}
-                        className={`transition-all duration-500 ease-out cursor-pointer
-                            ${isActive
-                                ? 'text-white font-bold scale-110 blur-none opacity-100'
-                                : isNear
-                                    ? 'text-zinc-300 scale-100 blur-[1px] opacity-60'
-                                    : 'text-zinc-500 scale-95 blur-[2px] opacity-30 hover:opacity-50'
-                            }
-                        `}
-                        onClick={() => {
-                            if (audioRef.current) {
-                                audioRef.current.currentTime = line.time;
-                                audioRef.current.play();
-                            }
-                        }}
-                    >
-                        {line.text}
-                    </p>
-                );
-            })}
+                    return (
+                        <p
+                            key={index}
+                            ref={el => linesRef.current[index] = el}
+                            className={`transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer origin-center
+                                ${isActive
+                                    ? 'text-white font-bold text-2xl scale-110 blur-none opacity-100 drop-shadow-md'
+                                    : isNear
+                                        ? 'text-zinc-300 text-lg scale-100 blur-[0.5px] opacity-70'
+                                        : isFar
+                                            ? 'text-zinc-500 text-base scale-95 blur-[1px] opacity-40'
+                                            : 'text-zinc-600 text-sm scale-90 blur-[2px] opacity-20'
+                                }
+                            `}
+                            onClick={() => {
+                                if (audioRef.current) {
+                                    audioRef.current.currentTime = line.time;
+                                    audioRef.current.play();
+                                }
+                            }}
+                            style={{
+                                transform: isActive ? 'scale(1.1) translateZ(0)' : 'scale(1) translateZ(0)',
+                            }}
+                        >
+                            {line.text}
+                        </p>
+                    );
+                })}
+            </div>
         </div>
     );
 };
