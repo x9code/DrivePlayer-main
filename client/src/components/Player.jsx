@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import {
     IoPlay, IoPause, IoPlaySkipForward, IoPlaySkipBack, IoShuffle, IoRepeat,
     IoHeart, IoHeartOutline, IoVolumeHigh, IoVolumeMute,
-    IoChevronDown, IoResize, IoExpand, IoSettingsOutline, IoMusicalNotes
+    IoChevronDown, IoResize, IoExpand, IoMusicalNotes
 } from 'react-icons/io5';
 
 // Use environment variable for API URL in production (Vercel), fall back to relative path (proxy) in dev
@@ -35,13 +35,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
         return likedSongs.some(s => s.id === currentSong.id);
     }, [currentSong, likedSongs]);
 
-    // Visualizer Refs
-    const canvasRef = useRef(null);
-    const audioContextRef = useRef(null);
-    const analyserRef = useRef(null);
-    const sourceRef = useRef(null);
-    const animationRef = useRef(null);
-    const prevValuesRef = useRef([]); // Store previous frame values for physics
+
 
     const [artError, setArtError] = useState(false);
 
@@ -157,199 +151,11 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [currentSong, setIsPlaying, onNext, onPrev]);
 
-    const [visualizerBars, setVisualizerBars] = useState(() => {
-        return parseInt(localStorage.getItem('driveplayer_viz_bars') || '120');
-    });
 
-    useEffect(() => {
-        localStorage.setItem('driveplayer_viz_bars', visualizerBars);
-    }, [visualizerBars]);
 
-    const [showVisualizer, setShowVisualizer] = useState(false);
 
-    // Delayed Visualizer Mount (Wait for transition)
-    useEffect(() => {
-        let timer;
-        if (isExpanded) {
-            timer = setTimeout(() => setShowVisualizer(true), 350);
-        } else {
-            setShowVisualizer(false);
-        }
-        return () => clearTimeout(timer);
-    }, [isExpanded]);
 
-    // Audio Visualizer Logic
-    useEffect(() => {
-        if (!showVisualizer || !audioRef.current) return;
 
-        if (!audioContextRef.current) {
-            try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioContextRef.current = new AudioContext();
-                analyserRef.current = audioContextRef.current.createAnalyser();
-                analyserRef.current.fftSize = 1024; // Optimized from 2048
-                analyserRef.current.smoothingTimeConstant = 0.92; // Smoother falloff (was 0.85)
-
-                if (!sourceRef.current) {
-                    sourceRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
-                    sourceRef.current.connect(analyserRef.current);
-                    analyserRef.current.connect(audioContextRef.current.destination);
-                }
-            } catch (e) {
-                console.error("Audio Context Error:", e);
-                return;
-            }
-        }
-
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d', { alpha: true }); // optimize
-        const bufferLength = analyserRef.current.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        const handleResize = () => {
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = window.innerWidth * dpr;
-            canvas.height = 300 * dpr;
-            ctx.scale(dpr, dpr);
-        };
-        window.addEventListener('resize', handleResize);
-        handleResize();
-
-        const draw = () => {
-            if (!showVisualizer) return; // Stop if hidden
-
-            animationRef.current = requestAnimationFrame(draw);
-            analyserRef.current.getByteFrequencyData(dataArray);
-
-            ctx.clearRect(0, 0, window.innerWidth, 300);
-
-            const width = window.innerWidth;
-            const height = 300;
-            // Configuration
-            const pointsCount = 60;
-            const points = [];
-            const center = pointsCount / 2;
-
-            // Ensure ref is initialized
-            if (prevValuesRef.current.length !== pointsCount + 1) {
-                prevValuesRef.current = new Array(pointsCount + 1).fill(0);
-            }
-            const prevValues = prevValuesRef.current;
-
-            // 1. Generate Points (Physics + Symmetrical)
-            for (let i = 0; i <= pointsCount; i++) {
-                const distFromCenter = Math.abs(i - center) / center;
-                const freqIndex = Math.floor(analyserRef.current.frequencyBinCount * Math.pow(distFromCenter, 2.5)); // Use analyserRef.current.frequencyBinCount
-
-                let rawValue = dataArray[freqIndex] || 0;
-
-                // Spatial Smooth (Neighbor average)
-                if (freqIndex > 0 && freqIndex < bufferLength - 1) {
-                    rawValue = (dataArray[freqIndex - 1] + dataArray[freqIndex] + dataArray[freqIndex + 1]) / 3;
-                }
-
-                // --- PHYSICS ENGINE ---
-                // Get previous frame value
-                let current = prevValues[i] || 0;
-
-                // Apply Attack/Decay
-                if (isPlaying) {
-                    if (rawValue > current) {
-                        // Attack: Fast rise (0.85) - Very responsive
-                        current += (rawValue - current) * 0.85;
-                    } else {
-                        // Decay: Faster fall (0.14) - Less floaty
-                        current -= (current - rawValue) * 0.14;
-                    }
-                } else {
-                    // Force decay when paused
-                    current *= 0.9;
-                }
-
-                prevValues[i] = current; // Save state
-                const value = current;
-                // ---------------------
-
-                const mask = Math.pow(1 - distFromCenter, 3);
-                const pointY = height - ((value / 255) * (height * 0.45) * mask); // Increase height slightly (0.45)
-                const pointX = (i / pointsCount) * width;
-
-                points.push({ x: pointX, y: pointY });
-            }
-
-            // 2. Draw Main Curve
-            ctx.beginPath();
-            if (points.length > 0) {
-                ctx.moveTo(points[0].x, points[0].y);
-                for (let i = 0; i < points.length - 1; i++) {
-                    const p0 = points[i];
-                    const p1 = points[i + 1];
-                    const midX = (p0.x + p1.x) / 2;
-                    const midY = (p0.y + p1.y) / 2;
-                    ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
-                }
-                ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
-            }
-
-            // Glassy Stroke
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.lineWidth = 4;
-            const color = themeColor || '255, 255, 255'; // Fallback to white
-
-            ctx.strokeStyle = `rgba(${color}, 0.95)`; // Theme color stroke
-            ctx.shadowColor = `rgba(${color}, 0.8)`;  // Theme color glow
-            ctx.shadowBlur = 25;
-            ctx.stroke();
-
-            // 3. Fill (Frosted Gradient)
-            ctx.lineTo(width, height);
-            ctx.lineTo(0, height);
-            ctx.closePath();
-
-            ctx.shadowBlur = 0;
-            const gradient = ctx.createLinearGradient(0, height / 2, 0, height);
-            gradient.addColorStop(0, `rgba(${color}, 0.25)`); // Theme frosting
-            gradient.addColorStop(0.5, `rgba(${color}, 0.1)`);
-            gradient.addColorStop(1, `rgba(${color}, 0.02)`);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-
-            // 4. Secondary Reflection Line (Subtle Depth)
-            ctx.beginPath();
-            if (points.length > 0) {
-                ctx.moveTo(points[0].x, points[0].y + 6);
-                for (let i = 0; i < points.length - 1; i++) {
-                    const p0 = points[i];
-                    const p1 = points[i + 1];
-                    const midX = (p0.x + p1.x) / 2;
-                    const midY = (p0.y + p1.y) / 2;
-                    // Offset Y by 6px
-                    ctx.quadraticCurveTo(p0.x, p0.y + 6, midX, midY + 6);
-                }
-                ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y + 6);
-
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = `rgba(${color}, 0.2)`; // Theme reflection
-                ctx.shadowBlur = 0;
-                ctx.stroke();
-            }
-        };
-
-        draw();
-
-        return () => {
-            if (animationRef.current) cancelAnimationFrame(animationRef.current);
-            window.removeEventListener('resize', handleResize);
-        };
-    }, [showVisualizer, currentSong, themeColor, visualizerBars]);
-
-    useEffect(() => {
-        if (isPlaying && audioContextRef.current && audioContextRef.current.state === 'suspended') {
-            audioContextRef.current.resume();
-        }
-    }, [isPlaying]);
 
     const handleTimeUpdate = () => {
         const current = audioRef.current.currentTime;
@@ -393,31 +199,34 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
         <>
             {/* FLOATING CAPSULE PLAYER (Mini) */}
             <div
-                className={`fixed z-50 transition-all duration-500 cubic-bezier(0.32, 0.72, 0, 1) overflow-hidden
+                className={`fixed z-50 transition-all duration-700 cubic-bezier(0.32, 0.72, 0, 1) overflow-hidden
                     left-1/2 -translate-x-1/2 shadow-2xl
                     ${isExpanded
-                        ? 'bottom-0 w-full h-full rounded-none bg-black' // Expanded: Full width/height, 0 bottom
-                        : 'bottom-6 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini: Floating with active press
+                        ? 'bottom-0 w-full h-full rounded-none' // Expanded
+                        : 'bottom-6 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini
                     } text-white`}
                 onClick={handlePlayerClick}
-                style={{ willChange: 'width, height, bottom, border-radius' }} // Optimize painting
+                style={{
+                    willChange: 'width, height, bottom, border-radius',
+                    background: isExpanded
+                        ? `radial-gradient(circle at 50% 30%, rgba(${themeColor || '80, 80, 80'}, 0.25), rgba(0, 0, 0, 0.95))`
+                        : undefined
+                }}
             >
-                {/* Visualizer Background (Only visible when Expanded) */}
+
+                {/* Liquid Glass Background */}
                 {isExpanded && (
                     <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+                        {/* 1. Deep Ambient Blur (Liquid Base) */}
                         {!artError && (
                             <img
                                 src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
                                 alt=""
-                                className="w-full h-full object-cover blur-[100px] scale-150 opacity-40 animate-pulse-slow"
+                                className="w-full h-full object-cover blur-[120px] scale-150 opacity-50 saturate-150 animate-pulse-slow transition-all duration-1000"
                             />
                         )}
-                        <div className="absolute inset-0 bg-black/40"></div>
-
-                        {/* Audio Visualizer Canvas */}
-                        <div className={`absolute bottom-0 left-0 w-full h-64 pointer-events-none z-0 mix-blend-screen transition-all duration-500 ease-out ${showVisualizer ? 'opacity-60 translate-y-0' : 'opacity-0 translate-y-20'}`}>
-                            <canvas ref={canvasRef} width={1000} height={300} className="w-full h-full" />
-                        </div>
+                        {/* 2. Glass Shine Overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/80 mix-blend-overlay"></div>
                     </div>
                 )}
 
@@ -497,21 +306,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                         <div className="flex gap-3">
                             {/* Settings Toggle */}
-                            <div className="relative group">
-                                <button className="glass-button w-10 h-10 rounded-full flex items-center justify-center hover:text-white">
-                                    <IoSettingsOutline size={20} />
-                                </button>
-                                {/* Simple Settings Tooltip/Menu */}
-                                <div className="absolute right-0 top-full mt-2 w-48 glass-panel p-4 rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                                    <span className="text-xs font-bold text-zinc-500 block mb-2">VISUALIZER</span>
-                                    <input
-                                        type="range" min="32" max="256" step="8"
-                                        value={visualizerBars}
-                                        onChange={(e) => setVisualizerBars(parseInt(e.target.value))}
-                                        className="w-full h-1 bg-zinc-600 rounded-lg appearance-none cursor-pointer"
-                                    />
-                                </div>
-                            </div>
+
 
                             <button
                                 onClick={(e) => {
@@ -529,7 +324,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     {/* Main Content Container with Staggered Entry */}
                     <div className={`flex flex-col items-center w-full max-w-md gap-8 z-10 transition-all duration-700 delay-100 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                         {/* Artwork */}
-                        <div className="w-72 h-72 md:w-96 md:h-96 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 group relative transform transition-transform duration-500 hover:scale-[1.02]">
+                        <div className="w-72 h-72 md:w-96 md:h-96 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 group relative transform transition-transform duration-500 hover:scale-[1.02] isolation-isolate">
                             {/* Like Button Overlay */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
@@ -546,11 +341,11 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 <img
                                     src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
                                     alt="Art"
-                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                    className="w-full h-full object-cover rounded-3xl transition-transform duration-700 group-hover:scale-105"
                                     onError={() => setArtError(true)}
                                 />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-zinc-600">
+                                <div className="w-full h-full rounded-3xl flex items-center justify-center text-zinc-600">
                                     <IoMusicalNotes size={64} />
                                 </div>
                             )}
