@@ -222,17 +222,17 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                 {/* Liquid Glass Background */}
                 {isExpanded && (
-                    <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10 bg-black/80">
                         {/* 1. Deep Ambient Blur (Liquid Base) */}
                         {!artError && (
                             <img
                                 src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
                                 alt=""
-                                className="w-full h-full object-cover blur-[120px] scale-150 opacity-50 saturate-150 animate-pulse-slow transition-all duration-1000"
+                                className="w-full h-full object-cover blur-[120px] scale-150 opacity-30 saturate-150 animate-pulse-slow transition-all duration-1000"
                             />
                         )}
                         {/* 2. Glass Shine Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/80 mix-blend-overlay"></div>
+                        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-black/40 to-black/90 mix-blend-overlay"></div>
                     </div>
                 )}
 
