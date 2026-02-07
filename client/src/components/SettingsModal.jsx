@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { IoClose, IoSaveOutline, IoSettingsOutline, IoPhonePortrait, IoArrowBack } from 'react-icons/io5';
+import { IoClose, IoSaveOutline, IoSettingsOutline, IoPhonePortrait, IoArrowBack, IoLockClosedOutline } from 'react-icons/io5';
 import axios from 'axios';
 
 // Environment variable for API URL (Production vs Dev)
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient }) => {
+const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient, autoLockEnabled, onToggleAutoLock }) => {
     // View State: 'MENU' (Main Options) | 'PASSWORD' (Change PIN Flow)
     const [activeView, setActiveView] = useState('MENU');
 
@@ -120,6 +120,20 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient }) => {
                                 className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out ${gradientEnabled ? 'bg-primary' : 'bg-zinc-700'}`}
                             >
                                 <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${gradientEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+
+                        {/* Option 2: Auto Lock */}
+                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                            <div className="flex flex-col">
+                                <span className="font-medium text-white">Auto Lock</span>
+                                <span className="text-xs text-zinc-400">Lock automatically after 5 minutes</span>
+                            </div>
+                            <button
+                                onClick={onToggleAutoLock}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out ${autoLockEnabled ? 'bg-primary' : 'bg-zinc-700'}`}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${autoLockEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                             </button>
                         </div>
 

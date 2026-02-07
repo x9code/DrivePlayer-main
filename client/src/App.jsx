@@ -65,6 +65,15 @@ function App() {
     localStorage.setItem('driveplayer_gradient', gradientEnabled);
   }, [gradientEnabled]);
 
+  // Auto Lock State
+  const [autoLockEnabled, setAutoLockEnabled] = useState(() => {
+    return localStorage.getItem('driveplayer_autolock') !== 'false'; // Default true
+  });
+
+  useEffect(() => {
+    localStorage.setItem('driveplayer_autolock', autoLockEnabled);
+  }, [autoLockEnabled]);
+
   // Mobile Detection
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -241,7 +250,7 @@ function App() {
 
   // Persistent Auto-lock Logic
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !autoLockEnabled) return;
 
     let timeout;
 
@@ -293,11 +302,12 @@ function App() {
     // Start loop
     checkInactivity();
 
+
     return () => {
       clearTimeout(timeout);
       events.forEach(event => window.removeEventListener(event, handleUserActivity));
     };
-  }, [isAuthenticated, isPlaying, handleLock, updateLastActive]);
+  }, [isAuthenticated, isPlaying, handleLock, updateLastActive, autoLockEnabled]);
 
   // Sorting State
   const [sortOption, setSortOption] = useState('name'); // 'name', 'date', 'size'
@@ -942,6 +952,8 @@ function App() {
           onClose={() => setShowSettings(false)}
           gradientEnabled={gradientEnabled}
           onToggleGradient={() => setGradientEnabled(!gradientEnabled)}
+          autoLockEnabled={autoLockEnabled}
+          onToggleAutoLock={() => setAutoLockEnabled(!autoLockEnabled)}
         />
       )}
 
