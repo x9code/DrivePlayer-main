@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
+const Lyrics = ({ audioRef, artist, title, isExpanded, isIdle }) => {
     const [lyrics, setLyrics] = useState([]);
     const [activeIndex, setActiveIndex] = useState(-1);
     const [loading, setLoading] = useState(false);
@@ -115,7 +115,7 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
             const newTranslateY = (containerHeight / 2) - (activeLineTop + activeLineHeight / 2);
             setTranslateY(newTranslateY);
         }
-    }, [activeIndex, lyrics, isExpanded]);
+    }, [activeIndex, isExpanded, isIdle]);
 
     if (error) {
         return (
@@ -140,12 +140,16 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
             ref={containerRef}
             className="w-full h-full overflow-hidden relative mask-image-gradient"
             style={{
-                maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)'
+                maskImage: isIdle
+                    ? 'linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%)'
+                    : 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
+                WebkitMaskImage: isIdle
+                    ? 'linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%)'
+                    : 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)'
             }}
         >
             <div
-                className="w-full absolute top-0 left-0 transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] px-4 text-center space-y-8 will-change-transform"
+                className="w-full absolute top-0 left-0 transition-transform duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] px-4 text-center space-y-8 will-change-transform"
                 style={{ transform: `translate3d(0, ${translateY}px, 0)` }}
             >
                 {lyrics.map((line, index) => {
@@ -157,15 +161,15 @@ const Lyrics = ({ audioRef, artist, title, isExpanded }) => {
                         <p
                             key={index}
                             ref={el => linesRef.current[index] = el}
-                            className={`transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer origin-center
-                                text-3xl font-bold
+                            className={`transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer origin-center
+                                ${isIdle ? 'text-4xl md:text-6xl font-extrabold tracking-tight leading-tight' : 'text-2xl md:text-3xl font-bold tracking-tight'}
                                 ${isActive
-                                    ? 'text-white scale-100 blur-none opacity-100 drop-shadow-md'
-                                    : isNear
-                                        ? 'text-zinc-300 scale-[0.8] blur-[1px] opacity-70'
-                                        : isFar
-                                            ? 'text-zinc-500 scale-[0.6] blur-[2px] opacity-40'
-                                            : 'text-zinc-700 scale-[0.4] blur-[4px] opacity-20'
+                                    ? `text-white scale-100 blur-none opacity-100 drop-shadow-2xl ${isIdle ? 'tracking-normal scale-105' : ''}` // Subtle pop on idle active
+                                    : isIdle
+                                        ? 'text-zinc-500 scale-[0.9] blur-[2px] opacity-20' // Idle: Very dim, blurred background
+                                        : isNear
+                                            ? 'text-zinc-300 scale-[0.85] blur-[0.5px] opacity-80'
+                                            : 'text-zinc-600 scale-[0.6] blur-[2px] opacity-40'
                                 }
                             `}
                             onClick={() => {

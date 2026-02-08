@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { IoPlay, IoPause, IoPlaySkipBack, IoPlaySkipForward, IoShuffle, IoRepeat, IoVolumeHigh, IoVolumeMute, IoChevronDown, IoList, IoHeart, IoHeartOutline, IoMusicalNotes, IoResize, IoExpand, IoMusicalNote } from 'react-icons/io5';
+import { IoPlay, IoPause, IoPlaySkipBack, IoPlaySkipForward, IoShuffle, IoRepeat, IoVolumeHigh, IoVolumeMute, IoChevronDown, IoList, IoHeart, IoHeartOutline, IoMusicalNotes, IoResize, IoExpand, IoMusicalNote, IoScan, IoClose } from 'react-icons/io5';
 import Lyrics from './Lyrics';
 
 // Use environment variable for API URL in production (Vercel), fall back to relative path (proxy) in dev
@@ -14,6 +14,8 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const [isExpanded, setIsExpanded] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [meta, setMeta] = useState({ title: null, artist: null });
+
+
 
     // Lock Body Scroll when Expanded
     useEffect(() => {
@@ -44,6 +46,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     useEffect(() => {
         localStorage.setItem('driveplayer_lyrics_show', showLyrics);
     }, [showLyrics]);
+
+    // Idle Mode Logic (Now Manual Only)
+    const [isIdle, setIsIdle] = useState(false);
 
     // Audio Ref for Lyrics Sync on new song
     useEffect(() => {
@@ -149,15 +154,20 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(console.log);
                     else if (document.exitFullscreen) document.exitFullscreen();
                     break;
+                case 'PageDown':
+                    if (isExpanded) setIsExpanded(false);
+                    if (isIdle) setIsIdle(false); // Also exit idle
+                    break;
+                case 'PageUp':
+                    if (!isExpanded) setIsExpanded(true);
+                    break;
                 default: break;
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentSong, setIsPlaying, onNext, onPrev]);
-
-
+    }, [currentSong, setIsPlaying, onNext, onPrev, isExpanded, isIdle]);
 
 
 
@@ -196,7 +206,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
     const handlePlayerClick = (e) => {
         if (e.target.closest('button') || e.target.closest('input')) return;
-        setIsExpanded(prev => !prev);
+        if (!isExpanded) setIsExpanded(true); // Only expand, never collapse on click
     };
 
     if (!currentSong) return null;
@@ -221,20 +231,18 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
             >
 
                 {/* Liquid Glass Background */}
-                {isExpanded && (
-                    <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10 bg-black/80">
-                        {/* 1. Deep Ambient Blur (Liquid Base) */}
-                        {!artError && (
-                            <img
-                                src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
-                                alt=""
-                                className="w-full h-full object-cover blur-[120px] scale-150 opacity-30 saturate-150 animate-pulse-slow transition-all duration-1000"
-                            />
-                        )}
-                        {/* 2. Glass Shine Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-black/40 to-black/90 mix-blend-overlay"></div>
-                    </div>
-                )}
+                <div className={`absolute inset-0 overflow-hidden pointer-events-none -z-10 bg-black/80 transition-opacity duration-1000 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
+                    {/* 1. Deep Ambient Blur (Liquid Base) */}
+                    {!artError && (
+                        <img
+                            src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
+                            alt=""
+                            className={`w-full h-full object-cover blur-[120px] opacity-30 saturate-150 animate-pulse-slower transition-transform duration-[20s] ease-in-out ${isIdle && showLyrics ? 'scale-[3]' : 'scale-150'}`}
+                        />
+                    )}
+                    {/* 2. Glass Shine Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-black/40 to-black/90 mix-blend-overlay"></div>
+                </div>
 
                 {/* --- MINI CONTENT --- */}
                 <div className={`absolute inset-0 flex items-center justify-between px-2 pr-6 transition-all duration-500 ease-out ${isExpanded ? 'opacity-0 pointer-events-none scale-90 translate-y-4' : 'opacity-100 scale-100 translate-y-0 delay-100'}`}>
@@ -302,10 +310,19 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
 
                 {/* --- EXPANDED CONTENT --- */}
-                <div className={`absolute inset-0 flex flex-col items-center justify-center p-8 transition-all duration-300 delay-100 ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-95'}`}>
+                <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isIdle ? 'delay-0' : 'delay-100'} ${isIdle && showLyrics ? 'p-0' : 'p-8'} ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-95'}`}>
+
+                    {/* Exit Immersive Mode Button (Floating) */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setIsIdle(false); }}
+                        className={`absolute top-8 right-8 z-50 p-3 rounded-full bg-white/10 backdrop-blur-md text-white/50 hover:text-white hover:bg-white/20 transition-all duration-500 ${isIdle && showLyrics ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-90'}`}
+                        title="Exit Immersive Mode"
+                    >
+                        <IoClose size={24} />
+                    </button>
 
                     {/* Header */}
-                    <div className="absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20">
+                    <div className={`absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20 transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                         <button onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }} className="glass-button w-10 h-10 rounded-full flex items-center justify-center hover:text-white">
                             <IoChevronDown size={24} />
                         </button>
@@ -319,6 +336,17 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 <IoMusicalNote size={16} />
                                 <span className="text-xs font-bold">Lyrics</span>
                             </button>
+
+                            {/* Manual Focus/Immersive Button */}
+                            {showLyrics && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setIsIdle(true); }}
+                                    className="glass-button h-10 w-10 rounded-full flex items-center justify-center hover:text-white hover:bg-white/10"
+                                    title="Enter Immersive Mode"
+                                >
+                                    <IoScan size={18} />
+                                </button>
+                            )}
 
                             <button
                                 onClick={(e) => {
@@ -334,10 +362,10 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     </div>
 
                     {/* Main Content Container with Staggered Entry */}
-                    <div className={`flex flex-col items-center w-full max-w-md gap-8 z-10 transition-all duration-700 delay-100 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+                    <div className={`flex flex-col items-center w-full ${isIdle && showLyrics ? 'max-w-6xl h-full justify-center' : 'max-w-md'} gap-8 z-10 transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                         {/* Artwork */}
                         {/* 3D Flip Container */}
-                        <div className="relative w-72 h-72 md:w-96 md:h-96 group perspective-1000">
+                        <div className={`relative group perspective-1000 transition-all duration-1000 ${isIdle && showLyrics ? 'w-full h-full max-h-[85vh]' : 'w-72 h-72 md:w-96 md:h-96'}`}>
                             <div
                                 className={`relative w-full h-full transition-transform duration-700 transform-style-3d ${showLyrics ? 'rotate-y-180' : ''}`}
                             >
@@ -382,13 +410,14 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                         artist={meta.artist || ''}
                                         title={meta.title || currentSong.name}
                                         isExpanded={isExpanded}
+                                        isIdle={isIdle}
                                     />
                                 </div>
                             </div>
                         </div>
 
                         {/* Text */}
-                        <div className="text-center space-y-1">
+                        <div className={`text-center space-y-1 transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0' : 'opacity-100'}`}>
                             <div className="flex items-center justify-center gap-3">
                                 <h2 className="text-3xl font-bold text-white truncate max-w-xs">{meta.title || (cleanTitle ? cleanTitle(currentSong.name) : currentSong.name)}</h2>
                             </div>
@@ -397,7 +426,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
 
                         {/* Progress Bar */}
-                        <div className="w-full space-y-2 group">
+                        <div className={`w-full space-y-2 group transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0' : 'opacity-100'}`}>
                             <div className="w-full h-1.5 bg-white/20 backdrop-blur-sm rounded-full cursor-pointer relative overflow-visible shadow-inner">
                                 <input
                                     type="range"
@@ -421,7 +450,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         </div>
 
                         {/* Main Controls */}
-                        <div className="flex items-center justify-between w-full max-w-xs px-4">
+                        <div className={`flex items-center justify-between w-full max-w-xs px-4 transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                             <button onClick={(e) => { e.stopPropagation(); onShuffleToggle(); }} className={`transition-colors ${isShuffle ? 'text-primary' : 'text-zinc-500 hover:text-white'}`}>
                                 <IoShuffle size={24} />
                             </button>

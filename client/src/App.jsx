@@ -715,31 +715,42 @@ function App() {
       return;
     }
 
-    // Case 2: Current view has NO songs (e.g. Root), pick a random folder
-    const folders = sortedFiles.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
-    if (folders.length > 0) {
-      // Pick random folder
-      const randomFolder = folders[Math.floor(Math.random() * folders.length)];
+    // Case 2: Current view has NO songs (e.g. Root or empty folder), do GLOBAL RECURSIVE SHUFFLE
+    const rootId = rootFolderId.current || currentFolderId;
 
+    if (rootId) {
+      setLoading(true);
       try {
-        const url = `${API_BASE}/api/files?folderId=${randomFolder.id}`;
-        const res = await axios.get(url);
-        const fetchedFiles = res.data.files;
-        const folderSongs = fetchedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+        console.log("Starting Global Shuffle from Root:", rootId);
 
-        if (folderSongs.length > 0) {
-          setQueue(folderSongs);
+        // TODO: distinct loading state for "Scanning Library..."
+        // For now, the spinner appears, which is good.
+
+        const url = `${API_BASE}/api/files/recursive?folderId=${rootId}`;
+        const res = await axios.get(url);
+
+        const fetchedFiles = res.data.files;
+        const allSongs = fetchedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+
+        if (allSongs.length > 0) {
+          console.log(`Global Shuffle: Queued ${allSongs.length} songs.`);
+          setQueue(allSongs);
           setIsShuffle(true);
-          const randomIndex = Math.floor(Math.random() * folderSongs.length);
-          setCurrentSong(folderSongs[randomIndex]);
+
+          const randomIndex = Math.floor(Math.random() * allSongs.length);
+          setCurrentSong(allSongs[randomIndex]);
           setIsPlaying(true);
-          // Optional: Notify user "Playing from [Folder Name]"?
         } else {
-          console.warn("Selected random folder was empty.");
+          alert("No songs found in your library.");
         }
       } catch (error) {
-        console.error("Error fetching random folder contents:", error);
+        console.error("Error doing global shuffle:", error);
+        alert(`Failed to shuffle library: ${error.response?.data?.error || error.message}`);
+      } finally {
+        setLoading(false);
       }
+    } else {
+      console.warn("Cannot shuffle: Root ID unknown.");
     }
   };
 

@@ -140,17 +140,34 @@ app.get('/api/files', async (req, res) => {
     }
 });
 
-// API: Recursive File Fetch (for Folder Play)
+// API: Recursive File Fetch (for Folder Play / Global Shuffle)
 app.get('/api/files/recursive', async (req, res) => {
     if (!driveClient) return res.status(500).json({ error: 'Drive not authenticated' });
 
     const folderId = req.query.folderId;
     if (!folderId) return res.status(400).json({ error: 'Folder ID required' });
 
+    const cacheKey = `recursive_files_${folderId}`;
+
+    // 1. Check Cache (if service available)
+    if (cacheService && cacheService.has(cacheKey)) {
+        const cached = cacheService.get(cacheKey);
+        // Correctly handle array updates
+        if (cached && Array.isArray(cached.list)) {
+            console.log(`[Cache] Serving recursive files for ${folderId} from cache`);
+            return res.json({ files: cached.list });
+        }
+    }
+
     try {
         console.log(`Fetch recursive: ${folderId}`);
         const files = await driveService.getFilesRecursive(folderId);
         console.log(`Found ${files.length} files recursively`);
+
+        // 2. Set Cache (Wrap in object to prevent array spread corruption)
+        if (cacheService) {
+            await cacheService.set(cacheKey, { list: files });
+        }
 
         res.json({ files });
     } catch (error) {
