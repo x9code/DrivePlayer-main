@@ -466,7 +466,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                                 <path d="M6.5 5.5C6.5 5.5 8.5 10 11 10C13.5 10 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                                 <path d="M12 5.5C12 5.5 14 10 16.5 10C19 10 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                             </svg>
-                                            <span className="text-[9px] font-semibold text-zinc-200 tracking-wide uppercase ml-0.5">Lossless</span>
+                                            <span className="text-[9px] font-semibold text-zinc-200 tracking-normal ml-0.5">
+                                                {(meta.sampleRate > 48000) ? 'Hi-Res Lossless' : 'Lossless'}
+                                            </span>
                                         </button>
 
                                         {/* Lossless Details Modal */}
@@ -497,7 +499,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                                         </div>
 
                                                         <div className="text-center space-y-1">
-                                                            <h3 className="text-[17px] font-bold text-white tracking-tight">Lossless</h3>
+                                                            <h3 className="text-[17px] font-bold text-white">
+                                                                {(meta.sampleRate > 48000) ? 'Hi-Res Lossless' : 'Lossless'}
+                                                            </h3>
                                                             <p className="text-[13px] text-zinc-400 font-medium">
                                                                 {meta.bitsPerSample || 16}-bit/{((meta.sampleRate || 44100) / 1000).toFixed(1)} kHz {meta.codec || 'FLAC'}
                                                             </p>
