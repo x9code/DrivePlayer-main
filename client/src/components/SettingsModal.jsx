@@ -27,7 +27,7 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient, autoLockEna
 
         // 1. Verify Current PIN
         const storedPin = localStorage.getItem('driveplayer_pin');
-        const envPin = import.meta.env.VITE_APP_PIN || '0000';
+        const envPin = import.meta.env.VITE_APP_PIN;
         const actualCurrentPin = storedPin || envPin;
 
         if (currentPin !== actualCurrentPin) {

@@ -18,9 +18,9 @@ const LockScreen = ({ onUnlock, isLocked }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        // Get PIN from localStorage first, then environment variable (default to 0000 if not set)
+        // Get PIN from localStorage first, then environment variable
         const sPin = localStorage.getItem('driveplayer_pin');
-        const correctPin = sPin || import.meta.env.VITE_APP_PIN || '0000';
+        const correctPin = sPin || import.meta.env.VITE_APP_PIN;
 
         if (pin === correctPin) {
             onUnlock();
