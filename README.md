@@ -128,7 +128,8 @@ Built with **React** and **Node.js**, DrivePlayer offers a premium listening exp
 ---
 
 ## 📄 License
-This project is open-source and available under the **MIT License**.
+This project is licensed under the **MIT License**.
+Copyright © 2026 **Deepak Kumar Rana**.
 
 ---
 

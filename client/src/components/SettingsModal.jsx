@@ -148,6 +148,13 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient, autoLockEna
                             </div>
                             <IoPhonePortrait className="text-zinc-500 group-hover:text-primary transition-colors text-xl" />
                         </button>
+
+                        {/* Attribution Footer */}
+                        <div className="pt-6 mt-2 text-center border-t border-white/5">
+                            <p className="text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">
+                                Designed & Developed by <span className="text-zinc-400">Deepak Kumar Rana</span>
+                            </p>
+                        </div>
                     </div>
                 )}
 
