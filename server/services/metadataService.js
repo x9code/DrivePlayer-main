@@ -162,7 +162,12 @@ class MetadataService {
             artwork: hasArtwork,
             fileSize: fileSize,
             mimeType: normalizeMimeType(mimeType),
-            filename: filename
+            filename: filename,
+            // Audio Quality Details
+            sampleRate: format.sampleRate,
+            bitrate: format.bitrate,
+            codec: format.codec,
+            bitsPerSample: format.bitsPerSample || 16 // Default to 16 if missing (common)
         };
     }
 

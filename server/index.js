@@ -226,7 +226,12 @@ app.get('/api/metadata/:fileId', async (req, res) => {
             title: metadata.title,
             artist: metadata.artist,
             album: metadata.album,
-            duration: metadata.duration
+            duration: metadata.duration,
+            filename: metadata.filename,
+            // Tech Details
+            sampleRate: metadata.sampleRate,
+            bitsPerSample: metadata.bitsPerSample,
+            codec: metadata.codec
         });
     } catch (error) {
         console.error('[API] Metadata fetch error:', error.message);

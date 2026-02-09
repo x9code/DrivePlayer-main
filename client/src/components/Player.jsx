@@ -13,6 +13,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const [volume, setVolume] = React.useState(1);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [isLosslessModalOpen, setIsLosslessModalOpen] = useState(false);
     const [meta, setMeta] = useState({ title: null, artist: null });
 
 
@@ -443,8 +444,81 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity scale-0 group-hover:scale-100"></div>
                                 </div>
                             </div>
-                            <div className="flex justify-between text-xs font-medium text-zinc-500 font-mono">
+                            <div className="flex justify-between items-center text-xs font-medium text-zinc-500 font-mono">
                                 <span>{formatTime(progress)}</span>
+
+                                {/* Apple Music Lossless Badge (Exact Match) */}
+                                {meta.filename && meta.filename.toLowerCase().endsWith('.flac') && (
+                                    <>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsLosslessModalOpen(true);
+                                            }}
+                                            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-500/15 border border-white/5 shadow-sm opacity-80 hover:opacity-100 hover:bg-zinc-500/25 transition-all cursor-pointer"
+                                            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif' }}
+                                        >
+                                            <svg width="11" height="8" viewBox="0 0 22 11" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-zinc-300">
+                                                <path d="M1 5.5C1 5.5 3 1 5.5 1C8 1 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M6.5 5.5C6.5 5.5 8.5 1 11 1C13.5 1 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M12 5.5C12 5.5 14 1 16.5 1C19 1 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M1 5.5C1 5.5 3 10 5.5 10C8 10 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M6.5 5.5C6.5 5.5 8.5 10 11 10C13.5 10 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M12 5.5C12 5.5 14 10 16.5 10C19 10 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                            <span className="text-[9px] font-semibold text-zinc-200 tracking-wide uppercase ml-0.5">Lossless</span>
+                                        </button>
+
+                                        {/* Lossless Details Modal */}
+                                        {isLosslessModalOpen && (
+                                            <div
+                                                className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsLosslessModalOpen(false);
+                                                }}
+                                            >
+                                                <div
+                                                    className="w-[90%] max-w-[320px] bg-black/40 backdrop-blur-xl border border-white/10 rounded-[18px] overflow-hidden shadow-2xl flex flex-col animate-scale-in origin-center"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif' }}
+                                                >
+                                                    <div className="flex flex-col items-center justify-center pt-8 pb-6 px-6 space-y-4">
+                                                        {/* Large Wave Icon */}
+                                                        <div className="w-16 h-12 text-white flex items-center justify-center mb-1">
+                                                            <svg width="68" height="42" viewBox="0 0 22 11" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                                                                <path d="M1 5.5C1 5.5 3 1 5.5 1C8 1 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                <path d="M6.5 5.5C6.5 5.5 8.5 1 11 1C13.5 1 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                <path d="M12 5.5C12 5.5 14 1 16.5 1C19 1 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                <path d="M1 5.5C1 5.5 3 10 5.5 10C8 10 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                <path d="M6.5 5.5C6.5 5.5 8.5 10 11 10C13.5 10 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                <path d="M12 5.5C12 5.5 14 10 16.5 10C19 10 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                            </svg>
+                                                        </div>
+
+                                                        <div className="text-center space-y-1">
+                                                            <h3 className="text-[17px] font-bold text-white tracking-tight">Lossless</h3>
+                                                            <p className="text-[13px] text-zinc-400 font-medium">
+                                                                {meta.bitsPerSample || 16}-bit/{((meta.sampleRate || 44100) / 1000).toFixed(1)} kHz {meta.codec || 'FLAC'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Footer Buttons */}
+                                                    <div className="grid grid-cols-1 border-t border-white/10">
+                                                        <button
+                                                            onClick={() => setIsLosslessModalOpen(false)}
+                                                            className="h-[44px] flex items-center justify-center text-[17px] font-semibold text-primary hover:bg-white/5 active:bg-white/10 transition-colors"
+                                                        >
+                                                            OK
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
                                 <span>{formatTime(duration)}</span>
                             </div>
                         </div>
