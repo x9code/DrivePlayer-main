@@ -1,48 +1,49 @@
 # 🎵 DrivePlayer
 
-A modern, feature-rich music player that streams audio files directly from Google Drive. Built with React and Node.js, DrivePlayer offers a premium listening experience with real-time audio visualization, favorites management, and an intuitive Spotify-inspired interface.
+A modern, high-fidelity music player that streams your audio collection directly from **Google Drive**. 
 
-## ✨ Features
+Built with **React** and **Node.js**, DrivePlayer offers a premium listening experience with **Lossless & Hi-Res Audio support**, real-time visualization, synced lyrics, and a stunning **Glassmorphism** interface inspired by Apple Music.
 
-### 🎨 Beautiful UI
-- **Spotify-Inspired Design**: Clean, modern table layout with sticky headers
-- **Dynamic Background**: Album art-based glow effect that adapts to each song
-- **Real-Time Visualizer**: Audio frequency bars that react to the beat, color-matched to album art
-- **Responsive Layout**: Seamless experience across desktop and mobile devices
+## ✨ Key Features
 
-### 🎧 Player Features
-- **Mini & Full Screen Modes**: Compact player bar or immersive full-screen view
-- **Favorites System**: Heart your favorite tracks and access them from any folder
-- **Playback Controls**: Shuffle, repeat (off/all/one), previous, next
-- **Progress Seeking**: Click or drag to jump to any point in the track
-- **Volume Control**: Adjustable volume with mute toggle
+### 🎧 High-Fidelity Audio
+- **Lossless Support**: Native playback of FLAC files with full metadata.
+- **Hi-Res Audio**: Automatically detects and plays high-resolution audio (up to 24-bit/192kHz).
+- **Smart Badges**: Dynamic **"Lossless"** and **"Hi-Res Lossless"** badges based on file quality.
+- **Technical Details**: Interactive modal revealing **Bit Depth**, **Sample Rate**, and **Codec** information.
 
-### ⌨️ Keyboard Shortcuts
-- **Space**: Play/Pause
-- **F**: Toggle Full Screen
-- **N / P**: Next / Previous Track
-- **M**: Mute/Unmute
-- **Left/Right**: Seek ±5 seconds
-- **Ctrl + Left/Right**: Previous/Next Track
-- **Up/Down**: Volume Control
+### 🎨 Premium UI/UX
+- **Glassmorphism Design**: Beautiful, translucent interface with blur effects and dynamic gradients.
+- **Dynamic Theming**: The entire app adapts its color scheme to the currently playing album art.
+- **Real-Time Visualizer**: 512-bar FFT audio visualizer that reacts to the beat, color-matched to the track.
+- **Responsive Layout**: Seamless experience across desktop and mobile devices.
 
-### 📁 File Management
-- **Folder Navigation**: Browse through your Google Drive folder structure
-- **Search**: Quickly find songs across all folders
-- **Sorting**: Sort by name, date, or file size (ascending/descending)
-- **Smart Title Cleaning**: Automatically removes numbering and artist prefixes
+### 🎤 Lyrics & Immersion
+- **Synced Lyrics**: Supports standard LRC files for time-synced lyrics.
+- **Plain Text Lyrics**: Fallback to text lyrics if no sync data is available.
+- **Immersive Mode**: Full-screen player with large artwork and synchronized visual elements.
 
-### 🎵 Audio Visualizer
-- **Dynamic Colors**: Extracts dominant color from album art
-- **High Resolution**: 512-bar FFT for smooth, detailed visualization
-- **Bottom-Aligned**: Fills the screen width as a dynamic footer
-- **Performance Optimized**: Hardware-accelerated rendering
+### 🛡️ Privacy & Security
+- **Auto-Lock**: Automatically locks the interface after inactivity to secure your session.
+- **Secure Auth**: OAuth 2.0 integration with Google Drive for secure access.
+
+### 📊 Integrated Analytics
+- **Vercel Analytics**: Built-in privacy-friendly analytics to track app usage and performance.
+
+### 📁 Advanced Library Management
+- **Folder Navigation**: Browse your entire Google Drive folder structure.
+- **Global Search**: Instantly find songs across all folders.
+- **Smart Sorting**: Sort by Name, Date, or Size.
+- **Favorites**: "Like" tracks to build a cross-folder collection of favorites.
+- **Smart Title Cleaning**: Automatically cleans up file names (removes extensions, numbers, "remix" suffixes, etc.) for a clean library view.
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v14 or higher)
-- Google Drive API credentials
+- Node.js (v18 or higher recommended)
+- Google Cloud Project with **Google Drive API** enabled
 - A Google account with audio files in Drive
 
 ### Installation
@@ -53,30 +54,31 @@ A modern, feature-rich music player that streams audio files directly from Googl
    cd DrivePlayer
    ```
 
-2. **Install dependencies**
+2. **Install Server Dependencies**
    ```bash
-   # Install server dependencies
    npm install
-
-   # Install client dependencies
-   cd client
-   npm install
-   cd ..
    ```
 
-3. **Set up Google Drive API**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project
-   - Enable the Google Drive API
-   - Create OAuth 2.0 credentials
-   - Download the credentials and save as `credentials.json` in the root directory
+3. **Install Client Dependencies**
+   ```bash
+   cd client
+   npm install
+   ```
+   > **Note:** The client requires `@vercel/analytics`. If it fails to install automatically, run `npm i @vercel/analytics` inside the `client` folder manually.
 
-4. **Configure environment variables**
-   
-   Create a `.env` file in the root directory:
+4. **Set up Google Drive API**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project and enable the **Google Drive API**.
+   - Create **OAuth 2.0 credentials** (Desktop App).
+   - Download the JSON file and save it as `credentials.json` in the **root** directory.
+
+5. **Configure Environment Variables**
+
+   Create a `.env` file in the **root** directory:
    ```env
    PORT=5000
    FOLDER_ID=your_google_drive_folder_id
+   # Optional: Set a specific port or secret
    ```
 
    Create a `.env` file in the `client` directory:
@@ -84,139 +86,50 @@ A modern, feature-rich music player that streams audio files directly from Googl
    VITE_API_URL=http://localhost:5000
    ```
 
-5. **Run the application**
+6. **Run the Application**
    ```bash
-   # Development mode (runs both server and client)
-   npm run dev
-
-   # Or run separately:
-   # Terminal 1 - Server
-   npm run server
-
-   # Terminal 2 - Client
-   cd client
+   # Development mode (runs both server and client concurrently)
    npm run dev
    ```
 
-6. **First-time authentication**
-   - On first run, the server will prompt you to authenticate with Google
-   - Follow the URL in the console to authorize the application
-   - The token will be saved for future use
+   Or run them separately:
+   - **Server**: `npm run server` (Root)
+   - **Client**: `npm run dev` (In `client/`)
 
-## 📖 Usage
-
-### Playing Music
-1. Navigate through folders by clicking on folder names
-2. Click on any song to start playback
-3. Use the mini player at the bottom or click to expand to full screen
-4. Click the heart icon to add songs to your favorites
-
-### Favorites
-- Click the heart icon next to any song title to add it to favorites
-- Access your favorites by clicking the **Favorites** button in the header
-- Favorites are saved locally in your browser
-
-### Visualizer
-- The audio visualizer appears at the bottom of the full-screen player
-- Colors automatically match the current album art
-- Bars react in real-time to the music's frequency spectrum
+---
 
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **React** - UI framework
-- **Vite** - Build tool and dev server
-- **TailwindCSS** - Utility-first CSS framework
-- **React Icons** - Icon library
-- **Axios** - HTTP client
+- **React 18** - UI Library
+- **Vite** - Next-gen build tool
+- **TailwindCSS** - Styling & Design System
+- **Framer Motion** - Animations (implied usage for smooth transitions)
+- **React Icons** - Iconography
+- **Vercel Analytics** - Performance monitoring
 
 ### Backend
-- **Node.js** - Runtime environment
-- **Express** - Web framework
-- **Google APIs** - Drive integration
-- **Music Metadata** - Audio file metadata extraction
-
-### Audio
-- **Web Audio API** - Real-time audio analysis and visualization
-- **Canvas API** - Visualizer rendering
-
-## 📁 Project Structure
-
-```
-DrivePlayer/
-├── client/                 # React frontend
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   │   ├── Player.jsx
-│   │   │   └── SongList.jsx
-│   │   ├── App.jsx
-│   │   └── index.css
-│   └── public/
-├── server.js              # Express backend
-├── credentials.json       # Google API credentials (not in repo)
-├── token.json            # OAuth token (generated on first run)
-└── README.md
-```
-
-## 🎨 Features in Detail
-
-### Audio Visualizer
-The visualizer uses the Web Audio API to analyze audio in real-time:
-- **FFT Size**: 1024 (512 frequency bins)
-- **Color Extraction**: Samples album art to determine dominant RGB values
-- **Rendering**: Canvas-based with gradient effects and opacity blending
-- **Performance**: GPU-accelerated transforms for smooth 60fps animation
-
-### Favorites System
-- Stored in browser's `localStorage`
-- Persists across sessions
-- Works across different Drive folders
-- Displays as a virtual "Favorites" folder
-
-### Smart Title Cleaning
-Automatically cleans song titles by:
-- Removing file extensions
-- Stripping leading numbers (e.g., "01 - ")
-- Detecting and removing artist prefixes
-- Handling "feat." and remix suffixes intelligently
-
-## 🔧 Configuration
-
-### Changing the Root Folder
-Update the `FOLDER_ID` in your `.env` file to point to a different Google Drive folder.
-
-### Customizing the Visualizer
-Edit `Player.jsx` to adjust:
-- `fftSize` - Higher values = more bars (512, 1024, 2048)
-- `usefulBars` - Percentage of frequency range to display
-- Colors, opacity, and gradient settings
-
-## 🐛 Troubleshooting
-
-### Audio won't play
-- Check that the server has proper CORS headers enabled
-- Verify the audio element has `crossOrigin="anonymous"`
-- Ensure your Google Drive files are accessible
-
-### Visualizer not working
-- Check browser console for Web Audio API errors
-- Verify CORS is properly configured
-- Try refreshing the page after playback starts
-
-### Favorites not saving
-- Check that localStorage is enabled in your browser
-- Verify you're not in private/incognito mode
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
-## 🙏 Acknowledgments
-
-- Inspired by Spotify's desktop interface
-- Built with modern web technologies
-- Uses Google Drive API for cloud storage
+- **Node.js & Express** - Server side logic
+- **GoogleAPIs** - Drive integration
+- **Music-Metadata** - Advanced audio metadata parsing (Bitrate, Sample Rate, etc.)
 
 ---
 
-**Enjoy your music! 🎶**
+## 📝 Usage Tips
+
+- **Keyboard Shortcuts**:
+    - `Space`: Play/Pause
+    - `F`: Toggle Full Screen
+    - `N / P`: Next / Previous Track
+    - `Ctrl + L`: Lock App immediately
+- **Visualizer Customization**: The visualizer sensitivity and style are tuned for a balance between responsiveness and aesthetics.
+- **Favorites**: Your favorites are stored locally in the browser, meaning they persist even if you close the tab.
+
+---
+
+## 📄 License
+This project is open-source and available under the **MIT License**.
+
+---
+
+**Enjoy your music in high fidelity! 🎶**
