@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Analytics } from "@vercel/analytics/react"
 import axios from 'axios'
 import Player from './components/Player'
 import SongList from './components/SongList'
@@ -970,6 +971,7 @@ function App() {
 
       {/* Lock Screen Overlay - Always rendered for animation */}
       <LockScreen isLocked={!isAuthenticated} onUnlock={handleUnlock} />
+      <Analytics />
     </div>
   )
 }
