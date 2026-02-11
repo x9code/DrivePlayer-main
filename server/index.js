@@ -128,8 +128,14 @@ app.get('/api/files', async (req, res) => {
 
 
 
+        // Enrich with Metadata
+        let files = filesRes.data.files || [];
+        if (metadataService) {
+            files = metadataService.enrichList(files);
+        }
+
         res.json({
-            files: filesRes.data.files || [],
+            files: files,
             folderId: targetFolderId,
             folderName: folderName
         });
@@ -169,7 +175,23 @@ app.get('/api/files/recursive', async (req, res) => {
             await cacheService.set(cacheKey, { list: files });
         }
 
-        res.json({ files });
+        // 3. Enrich with Metadata (Merge titles/artists from persistent cache)
+        let responseFiles = files;
+        if (metadataService) {
+            responseFiles = metadataService.enrichList(files);
+        }
+
+        // 4. Return files immediately (Fast UI)
+        res.json({ files: responseFiles });
+
+        // 5. Trigger Background Metadata Enrichment (Smart Scan)
+        if (metadataService) {
+            // Run asynchronously, don't await
+            metadataService.enrichFiles(files).catch(err =>
+                console.error('[Background] Enrichment error:', err.message)
+            );
+        }
+
     } catch (error) {
         console.error('Recursive fetch error:', error);
         res.status(500).json({ error: error.message });
@@ -242,6 +264,57 @@ app.get('/api/metadata/:fileId', async (req, res) => {
             album: 'Unknown',
             duration: 0
         });
+    }
+});
+
+// API: Get Metadata Scan Status
+app.get('/api/metadata/status/progress', (req, res) => {
+    if (!metadataService) {
+        return res.json({ active: false });
+    }
+    const status = { ...metadataService.scanStatus };
+    if (metadataService.cachedCount !== undefined) {
+        status.cached = metadataService.cachedCount;
+    }
+    res.json(status);
+});
+
+// API: Force Rescan (Root)
+app.post('/api/metadata/rescan', async (req, res) => {
+    if (!driveClient || !driveService || !metadataService) {
+        return res.status(500).json({ error: 'Services not initialized' });
+    }
+
+    try {
+        console.log('[Metadata] Force Rescan triggered by user');
+
+        // Find root "music" folder if not cached
+        // (Similar logic to /api/files but we need the ID)
+        let rootFolderId = null;
+        const folderRes = await driveClient.files.list({
+            q: "name = 'music' and mimeType = 'application/vnd.google-apps.folder'",
+            fields: 'files(id)',
+        });
+
+        if (folderRes.data.files.length) {
+            rootFolderId = folderRes.data.files[0].id;
+        } else {
+            return res.status(404).json({ error: 'Music folder not found' });
+        }
+
+        // Fetch all files recursively
+        const files = await driveService.getFilesRecursive(rootFolderId);
+
+        // Trigger enrichment with FORCE=false to only scan new/unscanned files
+        metadataService.enrichFiles(files, false).catch(err =>
+            console.error('[Background] Rescan enrichment error:', err.message)
+        );
+
+        res.json({ success: true, message: 'Scanning new files...', count: files.length });
+
+    } catch (error) {
+        console.error('[Metadata] Rescan error:', error.message);
+        res.status(500).json({ error: 'Rescan failed' });
     }
 });
 

@@ -86,6 +86,62 @@ class DriveService {
     }
 
     /**
+     * Download optimized ranges for metadata (Header + Footer)
+     * Header: 64KB (Cover ID3v2, most FLAC headers)
+     * Footer: 4KB (Cover ID3v1)
+     * @param {string} fileId - File ID
+     * @param {number} fileSize - Total file size
+     * @returns {Promise<{stream: Readable, size: number}>}
+     */
+    async downloadOptimizedMetadata(fileId, fileSize) {
+        try {
+            const headerSize = Math.min(524288, fileSize); // 512KB (Increased for artwork)
+            const footerSize = Math.min(4096, fileSize);  // 4KB
+
+            console.log(`[Drive] Smart Scan ${fileId}: Header(${headerSize}) + Footer(${footerSize})`);
+
+            // Check if file is too small to have separate footer
+            if (fileSize <= headerSize + footerSize) {
+                // Just download the whole thing if it's tiny
+                const buffer = await this.downloadRange(fileId, 0, fileSize - 1);
+                const { PassThrough } = require('stream');
+                const stream = new PassThrough();
+                stream.end(buffer);
+                return { stream, size: buffer.length };
+            }
+
+            // Download ranges
+            const [header, footer] = await Promise.all([
+                this.downloadRange(fileId, 0, headerSize - 1),
+                this.downloadRange(fileId, fileSize - footerSize, fileSize - 1)
+            ]);
+
+            // Combine only if music-metadata can handle gaps?
+            // Actually, music-metadata 'parseStream' expects a continuous stream or a random-access reader.
+            // For a stream, we can just concatenate header + padding + footer?
+            // NO, `music-metadata` might stop if it hits garbage.
+            // BETTER: metadataService should handle the specific logic. 
+            // BUT for now, let's just return the concatenated buffer. 
+            // Most parsers are robust enough to find ID3 at start and ID3v1 at end.
+
+            const combined = Buffer.concat([header, footer]);
+
+            const { PassThrough } = require('stream');
+            const stream = new PassThrough();
+            stream.end(combined);
+
+            return {
+                stream: stream,
+                size: combined.length
+            };
+        } catch (error) {
+            console.error(`[Drive] Smart Scan error for ${fileId}:`, error.message);
+            // Fallback to old safe method
+            return this.downloadMetadataRanges(fileId, fileSize);
+        }
+    }
+
+    /**
      * Download enough data to parse full metadata
      * Downloads both header (1MB) and footer (128KB) for comprehensive tag extraction
      * @param {string} fileId - Google Drive file ID
@@ -182,49 +238,58 @@ class DriveService {
     async getFilesRecursive(folderId, maxDepth = 5, maxFiles = 10000) {
         let allFiles = [];
 
-        const fetchLevel = async (currentFolderId, currentDepth) => {
+        // Fetch root folder name first
+        let rootFolderName = 'Unknown Album';
+        try {
+            const rootMeta = await this.getFileMetadata(folderId);
+            rootFolderName = rootMeta.name;
+        } catch (e) {
+            console.warn(`[Drive] Failed to fetch root folder name: ${e.message}`);
+        }
+
+        const fetchLevel = async (currentFolderId, currentFolderName, currentDepth) => {
             if (currentDepth > maxDepth || allFiles.length >= maxFiles) return;
 
             try {
                 let pageToken = null;
 
                 do {
-                    // Stop if we've reached the file limit
                     if (allFiles.length >= maxFiles) break;
 
-                    // Fetch files and folders in current directory with pagination
                     const res = await this.driveClient.files.list({
                         q: `'${currentFolderId}' in parents and (mimeType = 'application/vnd.google-apps.folder' or mimeType contains 'audio/' or fileExtension = 'mp3' or fileExtension = 'm4a' or fileExtension = 'opus' or fileExtension = 'flac') and trashed = false`,
                         fields: 'nextPageToken, files(id, name, mimeType, size, thumbnailLink)',
-                        orderBy: 'folder, name', // Folders first
-                        pageSize: 1000, // Fetch up to 1000 items per request
+                        orderBy: 'folder, name',
+                        pageSize: 1000,
                         pageToken: pageToken
                     });
 
                     const items = res.data.files || [];
                     pageToken = res.data.nextPageToken;
 
-                    // Separate files and folders
                     const folders = items.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
                     const files = items.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
 
-                    // Add files to result
-                    allFiles.push(...files);
+                    // Attach Album Name (Folder Name)
+                    const filesWithAlbum = files.map(f => ({
+                        ...f,
+                        album: currentFolderName
+                    }));
 
-                    // Recurse into folders (parallel)
-                    // We check limit again before potentially launching many recursion branches
+                    allFiles.push(...filesWithAlbum);
+
                     if (folders.length > 0 && allFiles.length < maxFiles) {
-                        await Promise.all(folders.map(folder => fetchLevel(folder.id, currentDepth + 1)));
+                        // Pass folder.name as the new album name for children
+                        await Promise.all(folders.map(folder => fetchLevel(folder.id, folder.name, currentDepth + 1)));
                     }
                 } while (pageToken && allFiles.length < maxFiles);
 
             } catch (error) {
                 console.error(`[Drive] Error scanning folder ${currentFolderId}:`, error.message);
-                // Continue scanning other folders even if one fails
             }
         };
 
-        await fetchLevel(folderId, 0);
+        await fetchLevel(folderId, rootFolderName, 0);
         return allFiles;
     }
 

@@ -3,9 +3,17 @@ import { Analytics } from "@vercel/analytics/react"
 import axios from 'axios'
 import Player from './components/Player'
 import SongList from './components/SongList'
-import { IoLogoGoogle, IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoLockClosedOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay } from 'react-icons/io5'
+import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoLockClosedOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary } from 'react-icons/io5'
 import LockScreen from './components/LockScreen'
 import SettingsModal from './components/SettingsModal'
+import AddToPlaylistModal from './components/AddToPlaylistModal'
+
+import LibraryModal from './components/LibraryModal'
+import Sidebar from './components/Sidebar' // [NEW]
+import { PlaylistManager } from './utils/PlaylistManager' // [NEW]
+import ConfirmModal from './components/ConfirmModal'
+import { AlbumGrid, ArtistGrid } from './components/LibraryViews'
+import { cleanTitle } from './utils/format';
 
 // Environment variable for API URL (Production vs Dev)
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -48,6 +56,92 @@ function App() {
   useEffect(() => {
     localStorage.setItem('driveplayer_favorites', JSON.stringify(likedSongs));
   }, [likedSongs]);
+
+  // Playlist State [NEW]
+  const [playlists, setPlaylists] = useState([]);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+
+  // Play Counts State (Persisted in localStorage)
+  const [playCounts, setPlayCounts] = useState(() => {
+    const saved = localStorage.getItem('driveplayer_playcounts');
+    try {
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      console.error("Failed to parse play counts", e);
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('driveplayer_playcounts', JSON.stringify(playCounts));
+  }, [playCounts]);
+
+  const refreshPlaylists = useCallback(() => {
+    setPlaylists(PlaylistManager.getAll());
+  }, []);
+
+  useEffect(() => {
+    refreshPlaylists();
+  }, [refreshPlaylists]);
+
+  const handleCreatePlaylist = (name) => {
+    PlaylistManager.create(name);
+    refreshPlaylists();
+  };
+
+  const handleDeletePlaylist = (e, id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Playlist?',
+      message: 'This action cannot be undone. Are you sure you want to delete this playlist?',
+      onConfirm: () => {
+        PlaylistManager.delete(id);
+        refreshPlaylists();
+        if (currentFolderId === id) handleGoHome();
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  // Nav helper for Sidebar
+  const handleSidebarNavigate = (id) => {
+    if (id === null) {
+      handleGoHome();
+    } else if (id === 'favorites') {
+      // Manually trigger favorite view logic
+      setSearchQuery('');
+      setIsSearching(false);
+      setCurrentFolderId('favorites');
+      setFiles(likedSongs);
+      setCurrentFolderName('Favorites');
+      loading && setLoading(false); // Ensure loading is off
+      window.history.pushState({ folderId: 'favorites' }, '', '?folder=favorites');
+    } else if (id === 'charts') {
+      // Charts View
+      setSearchQuery('');
+      setIsSearching(false);
+      setCurrentFolderId('charts');
+      // Fetch and sort logic is inside fetchFiles or handled here
+      fetchFiles('charts');
+      setCurrentFolderName('Top 20 Charts');
+      window.history.pushState({ folderId: 'charts' }, '', '?folder=charts');
+    } else if (id.startsWith('lib:')) {
+      // Library routes (Songs, Albums, Artists)
+      handleFolderClick(id);
+    } else {
+      // Playlist
+      const playlist = playlists.find(p => p.id === id);
+      if (playlist) {
+        setSearchQuery('');
+        setIsSearching(false);
+        setCurrentFolderId(id);
+        setFiles(playlist.songs);
+        setCurrentFolderName(playlist.name);
+        setLoading(false);
+        window.history.pushState({ folderId: id }, '', `?folder=${id}`);
+      }
+    }
+  };
 
   // Theme State
   const [themeColor, setThemeColor] = useState('224, 133, 224'); // Default Pink-Lavender
@@ -217,6 +311,8 @@ function App() {
   const [isShuffle, setIsShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState(0); // 0: Off, 1: All, 2: One
   const [showSettings, setShowSettings] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [songToAdd, setSongToAdd] = useState(null);
   const [showSortMenu, setShowSortMenu] = useState(false);
 
   // Helper to update last active time
@@ -382,45 +478,9 @@ function App() {
     return common;
   }, [sortedFiles, TITLE_SUFFIXES]);
 
-  const cleanTitle = useCallback((fileName) => {
-    let name = fileName.replace(/\.[^/.]+$/, ""); // Remove extension
-    name = name.replace(/^\d+[\.\-\s]+/, "");    // Remove initial numbering
-
-    const parts = name.split(' - ');
-
-    if (parts.length > 1) {
-      const part1 = parts[0].trim();
-      const part2 = parts.slice(1).join(' - ').trim();
-
-      const p1Lower = part1.toLowerCase();
-      const p2Lower = part2.toLowerCase();
-
-      // Frequency Heuristic
-      const p1IsCommon = getCommonArtistTerms.has(p1Lower);
-      const p2IsCommon = getCommonArtistTerms.has(p2Lower);
-
-      if (p1IsCommon && !p2IsCommon) return part2;
-      if (p2IsCommon && !p1IsCommon) return part1;
-
-      // Comma Heuristic
-      const p1Commas = (part1.match(/,/g) || []).length;
-      const p2Commas = (part2.match(/,/g) || []).length;
-      if (p1Commas > 0 && p2Commas === 0) return part2;
-      if (p2Commas > 0 && p1Commas === 0) return part1;
-
-      // Feat Heuristic
-      const featRegex = /\s(feat|ft|featuring)\.?\s/i;
-      if (featRegex.test(part1) && !featRegex.test(part2)) return part2;
-      if (featRegex.test(part2) && !featRegex.test(part1)) return part1;
-
-      // Suffix Heuristic
-      if (TITLE_SUFFIXES.some(s => p2Lower.includes(s))) return name;
-
-      // Default
-      return name;
-    }
-    return name;
-  }, [getCommonArtistTerms, TITLE_SUFFIXES]);
+  const cleanTitleCallback = useCallback((fileName) => {
+    return cleanTitle(fileName, getCommonArtistTerms);
+  }, [getCommonArtistTerms]);
 
   // Fetch files (songs + folders)
   const fetchFiles = async (folderId = null) => {
@@ -440,6 +500,100 @@ function App() {
       setFiles(likedSongs);
       setCurrentFolderName('Favorites');
       setLoading(false);
+      return;
+    }
+
+    // Special Case: Playlists [NEW]
+    const playlist = PlaylistManager.getAll().find(p => p.id === folderId);
+    if (playlist) {
+      setFiles(playlist.songs);
+      setCurrentFolderName(playlist.name);
+      setLoading(false);
+      return;
+    }
+
+    // Special Case: Charts [NEW]
+    if (folderId === 'charts') {
+      setLoading(true);
+      try {
+        // Ensure we have root ID or just fetch all recursive
+        let root = rootFolderId.current;
+        if (!root) {
+          const rootRes = await axios.get(`${API_BASE}/api/files`);
+          root = rootRes.data.folderId;
+          rootFolderId.current = root;
+        }
+
+        const res = await axios.get(`${API_BASE}/api/files/recursive?folderId=${root}`);
+        let allFiles = res.data.files;
+
+        // Filter songs
+        const songs = allFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+
+        // Sort by Play Count (Descending)
+        songs.sort((a, b) => {
+          const countA = playCounts[a.id] || 0;
+          const countB = playCounts[b.id] || 0;
+          return countB - countA;
+        });
+
+        // Top 20
+        setFiles(songs.slice(0, 20));
+        setCurrentFolderName('Top 20 Charts');
+
+      } catch (error) {
+        console.error("Charts fetch error", error);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Special Case: Library Views [NEW]
+    if (folderId && folderId.startsWith('lib:')) {
+      setLoading(true);
+      try {
+        // Ensure we have root ID
+        let root = rootFolderId.current;
+        if (!root) {
+          // Quick fetch to get root ID if missing
+          const rootRes = await axios.get(`${API_BASE}/api/files`);
+          root = rootRes.data.folderId;
+          rootFolderId.current = root;
+        }
+
+        // Always fetch all files recursively for library views
+        // TODO: Cache this response specifically for library?
+        const res = await axios.get(`${API_BASE}/api/files/recursive?folderId=${root}`);
+        let allFiles = res.data.files;
+        // Filter out folders from the song list perspectives
+        // (Albums view might use them, but our current AlbumGrid uses file.album metadata string)
+
+        if (folderId === 'lib:songs') {
+          setCurrentFolderName('All Songs');
+          setFiles(allFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder'));
+        } else if (folderId === 'lib:albums') {
+          setCurrentFolderName('Albums');
+          setFiles(allFiles); // Pass all, Grid handles grouping
+        } else if (folderId === 'lib:artists') {
+          setCurrentFolderName('Artists');
+          setFiles(allFiles);
+        } else if (folderId.startsWith('lib:artist:')) {
+          const artist = decodeURIComponent(folderId.split(':')[2]);
+          setCurrentFolderName(artist);
+          // Filter by artist - ONLY use embedded metadata
+          setFiles(allFiles.filter(f => f.artist === artist));
+        } else if (folderId.startsWith('lib:album:')) {
+          const album = decodeURIComponent(folderId.split(':')[2]);
+          setCurrentFolderName(album);
+          setFiles(allFiles.filter(f => (f.album || "Unknown Album") === album));
+        }
+
+      } catch (error) {
+        console.error("Library fetch error:", error);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -537,6 +691,9 @@ function App() {
           setFiles(likedSongs);
           setCurrentFolderName('Favorites');
           setLoading(false);
+        } else if (state.folderId === 'charts') {
+          setCurrentFolderId('charts');
+          fetchFiles('charts');
         } else {
           setCurrentFolderId(state.folderId);
           fetchFiles(state.folderId);
@@ -583,6 +740,24 @@ function App() {
     window.addEventListener('audio-ended', handleSongEnded);
     return () => window.removeEventListener('audio-ended', handleSongEnded);
   }, [currentSong, isShuffle, repeatMode, queue]); // queue dependency is important here
+
+  // Track Play Counts
+  useEffect(() => {
+    if (currentSong && isPlaying) {
+      // Simple logic: If a song STARTS playing, count it.
+      // Ideally we'd wait for 30s or end, but for simplicity:
+
+      // We use a timeout to ensure it's not just a skip
+      const timer = setTimeout(() => {
+        setPlayCounts(prev => ({
+          ...prev,
+          [currentSong.id]: (prev[currentSong.id] || 0) + 1
+        }));
+      }, 5000); // 5 seconds threshold to count as a play
+
+      return () => clearTimeout(timer);
+    }
+  }, [currentSong?.id]); // Only trigger on ID change (new song)
 
 
 
@@ -779,9 +954,28 @@ function App() {
 
 
 
+  const handleRenamePlaylist = (id, newName) => {
+    PlaylistManager.rename(id, newName);
+    refreshPlaylists();
+  };
+
+  // Sidebar Collapse State
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('driveplayer_sidebar_collapsed') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('driveplayer_sidebar_collapsed', isSidebarCollapsed);
+  }, [isSidebarCollapsed]);
+
+  const toggleSidebar = () => setIsSidebarCollapsed(!isSidebarCollapsed);
+
   return (
-    <div className="min-h-screen bg-darker text-white selection:bg-primary selection:text-black relative z-0">
-      {/* Dynamic Background Gradient (Simplified for Mobile) */}
+    <div className="min-h-screen bg-transparent text-white selection:bg-primary selection:text-black relative z-0">
+      {/* Base Background Layer (Always Black) */}
+      <div className="fixed inset-0 bg-darker -z-50" />
+
+      {/* Dynamic Background Gradient (Conditional) */}
       <div
         className={`fixed inset-0 pointer-events-none transition-opacity duration-1000 -z-10 ${gradientEnabled ? 'opacity-100' : 'opacity-0'}`}
         style={{
@@ -796,8 +990,24 @@ function App() {
           `
         }}
       />
+
+      {/* Sidebar (Desktop) */}
+      {!isMobile && (
+        <div className={`fixed top-0 left-0 bottom-0 z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+          <Sidebar
+            playlists={playlists}
+            currentFolderId={currentFolderId}
+            onNavigate={handleSidebarNavigate}
+            onCreatePlaylist={handleCreatePlaylist}
+            onDeletePlaylist={handleDeletePlaylist}
+            isCollapsed={isSidebarCollapsed}
+            onToggle={toggleSidebar}
+          />
+        </div>
+      )}
+
       {/* Header - Glassmorphism Refined */}
-      <header className="fixed top-0 w-full z-50 h-20 flex items-center px-6 justify-between transition-all duration-300 glass-surface">
+      <header className={`fixed top-0 right-0 z-50 h-20 flex items-center px-6 justify-between transition-all duration-300 glass-surface ${!isMobile ? (isSidebarCollapsed ? 'left-20' : 'left-64') : 'left-0'}`}>
         <div className="flex items-center gap-3 min-w-0 mr-4">
           {((currentFolderId && currentFolderId !== rootFolderId.current) || isSearching) && (
             <button onClick={handleBack} className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-white hover:scale-105 shrink-0" title="Go Back">
@@ -808,9 +1018,7 @@ function App() {
             onClick={handleGoHome}
             className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity min-w-0 group"
           >
-            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center backdrop-blur-md border border-white/5 group-hover:bg-white/10 transition-colors">
-              <IoLogoGoogle className="text-primary text-xl shrink-0 drop-shadow-[0_0_8px_rgba(var(--theme-color),0.5)]" />
-            </div>
+
             <h1 className="text-xl font-semibold tracking-tight hidden md:block truncate drop-shadow-sm">{currentFolderName || 'DrivePlayer'}</h1>
           </div>
         </div>
@@ -890,6 +1098,17 @@ function App() {
             <IoPlay size={20} className="pl-0.5" />
           </button>
 
+          {/* Library Button - Mobile Only */}
+          {isMobile && (
+            <button
+              onClick={() => setShowLibrary(true)}
+              className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:scale-105"
+              title="Your Library"
+            >
+              <IoLibrary className="text-xl" />
+            </button>
+          )}
+
           {/* Settings Button */}
           <button
             onClick={() => setShowSettings(true)}
@@ -908,37 +1127,57 @@ function App() {
             <IoLockClosedOutline className="text-xl" />
           </button>
 
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setIsSearching(false);
-              setCurrentFolderId('favorites');
-              setFiles(likedSongs);
-              window.history.pushState({ folderId: 'favorites' }, '', '?folder=favorites');
-            }}
-            className={`glass-button w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 ${currentFolderId === 'favorites' ? 'text-primary bg-primary/10 border-primary/50' : 'text-zinc-300 hover:text-white'}`}
-            title="Favorites"
-          >
-            {currentFolderId === 'favorites' ? <IoHeart className="text-xl" /> : <IoHeartOutline className="text-xl" />}
-          </button>
+          {isMobile && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setIsSearching(false);
+                setCurrentFolderId('favorites');
+                setFiles(likedSongs);
+                window.history.pushState({ folderId: 'favorites' }, '', '?folder=favorites');
+              }}
+              className={`glass-button w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 ${currentFolderId === 'favorites' ? 'text-primary bg-primary/10 border-primary/50' : 'text-zinc-300 hover:text-white'}`}
+              title="Favorites"
+            >
+              {currentFolderId === 'favorites' ? <IoHeart className="text-xl" /> : <IoHeartOutline className="text-xl" />}
+            </button>
+          )}
         </div>
 
       </header>
 
-      {/* Main Content - Fixed Layout for Glass Effect */}
-      <main ref={mainScrollRef} className="fixed inset-0 pt-20 overflow-y-auto custom-scrollbar pb-32 z-0">
 
-        <SongList
-          files={sortedFiles}
-          loading={loading}
-          currentSong={currentSong}
-          onPlay={handlePlay}
-          onFolderClick={handleFolderClick}
-          onFolderPlay={handleFolderPlay}
-          cleanTitle={cleanTitle}
-          likedSongs={likedSongs}
-          toggleLike={toggleLike}
-        />
+
+      {/* Main Content - Fixed Layout for Glass Effect */}
+      <main ref={mainScrollRef} className={`fixed inset-0 pt-20 overflow-y-auto custom-scrollbar pb-32 z-0 transition-all duration-300 ${!isMobile ? (isSidebarCollapsed ? 'pl-20' : 'pl-64') : ''}`}>
+
+        {currentFolderId === 'lib:albums' ? (
+          <AlbumGrid
+            files={files} // Use raw files for grid grouping
+            onAlbumClick={(name) => handleFolderClick('lib:album:' + encodeURIComponent(name))}
+          />
+        ) : currentFolderId === 'lib:artists' ? (
+          <ArtistGrid
+            files={files}
+            onArtistClick={(name) => handleFolderClick('lib:artist:' + encodeURIComponent(name))}
+          />
+        ) : (
+          <SongList
+            files={currentFolderId === 'charts' ? files : sortedFiles}
+            playCounts={playCounts}
+            loading={loading}
+            currentSong={currentSong}
+            onPlay={handlePlay}
+            onFolderClick={handleFolderClick}
+            onFolderPlay={handleFolderPlay}
+            cleanTitle={cleanTitleCallback}
+            likedSongs={likedSongs}
+            toggleLike={toggleLike}
+            onAddPlaylist={(song) => setSongToAdd(song)}
+            activePlaylist={playlists.find(p => p.id === currentFolderId)}
+            onRenamePlaylist={handleRenamePlaylist}
+          />
+        )}
       </main>
 
       {/* Player */}
@@ -956,23 +1195,60 @@ function App() {
         likedSongs={likedSongs}
         toggleLike={toggleLike}
         themeColor={themeColor}
+        hasSidebar={!isMobile}
+        onAddPlaylist={(song) => setSongToAdd(song)}
       />
 
       {/* Modals */}
-      {showSettings && (
-        <SettingsModal
-          onClose={() => setShowSettings(false)}
-          gradientEnabled={gradientEnabled}
-          onToggleGradient={() => setGradientEnabled(!gradientEnabled)}
-          autoLockEnabled={autoLockEnabled}
-          onToggleAutoLock={() => setAutoLockEnabled(!autoLockEnabled)}
-        />
-      )}
+      {
+        showSettings && (
+          <SettingsModal
+            onClose={() => setShowSettings(false)}
+            gradientEnabled={gradientEnabled}
+            onToggleGradient={() => setGradientEnabled(!gradientEnabled)}
+            autoLockEnabled={autoLockEnabled}
+            onToggleAutoLock={() => setAutoLockEnabled(!autoLockEnabled)}
+          />
+        )
+      }
+
+      {
+        showLibrary && (
+          <LibraryModal
+            onClose={() => setShowLibrary(false)}
+            onPlay={handlePlay}
+            currentSong={currentSong}
+            cleanTitle={cleanTitle}
+            likedSongs={likedSongs}
+            toggleLike={toggleLike}
+          />
+        )
+      }
+
+      {
+        songToAdd && (
+          <AddToPlaylistModal
+            song={songToAdd}
+            onClose={() => setSongToAdd(null)}
+            onPlaylistUpdate={() => {
+              refreshPlaylists();
+            }}
+          />
+        )
+      }
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
 
       {/* Lock Screen Overlay - Always rendered for animation */}
       <LockScreen isLocked={!isAuthenticated} onUnlock={handleUnlock} />
       <Analytics />
-    </div>
+    </div >
   )
 }
 

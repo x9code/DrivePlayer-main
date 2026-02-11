@@ -39,6 +39,10 @@ function parseFilename(filename) {
     // Remove leading track numbers (01, 02, etc.)
     name = name.replace(/^\d{1,3}[\s._-]+/, '');
 
+    // Remove duplicate suffixes like (1), (2), copy 1, etc.
+    name = name.replace(/\s*\(\d+\)$/, ''); // matches " (1)", " (2)" at end
+    name = name.replace(/\s*copy\s*\d*$/i, ''); // matches " copy", " copy 1"
+
     // If pattern "Artist - Title", extract Title
     if (name.includes(' - ')) {
         const parts = name.split(' - ');

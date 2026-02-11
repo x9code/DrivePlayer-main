@@ -112,8 +112,8 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient, autoLockEna
                         {/* Option 1: Gradient */}
                         <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
                             <div className="flex flex-col">
-                                <span className="font-medium text-white">Gradient</span>
-                                <span className="text-xs text-zinc-400">Enable UI background blur</span>
+                                <span className="font-medium text-white">Dynamic Background</span>
+                                <span className="text-xs text-zinc-400">Enable ambient color glow</span>
                             </div>
                             <button
                                 onClick={onToggleGradient}
@@ -127,7 +127,7 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient, autoLockEna
                         <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
                             <div className="flex flex-col">
                                 <span className="font-medium text-white">Auto Lock</span>
-                                <span className="text-xs text-zinc-400">Lock automatically after 5 minutes</span>
+                                <span className="text-xs text-zinc-400">Lock automatically after 5 min</span>
                             </div>
                             <button
                                 onClick={onToggleAutoLock}
@@ -153,6 +153,9 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient, autoLockEna
                         <div className="pt-6 mt-2 text-center border-t border-white/5">
                             <p className="text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">
                                 Designed & Developed by <span className="text-zinc-400">Deepak Kumar Rana</span>
+                            </p>
+                            <p className="text-[8px] text-zinc-600 font-semibold tracking-widest uppercase">
+                                Powered by <span className="text-zinc-400">Google - Antigravity</span>
                             </p>
                         </div>
                     </div>

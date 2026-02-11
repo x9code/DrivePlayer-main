@@ -12,7 +12,7 @@ const Lyrics = ({ audioRef, artist, title, isExpanded, isIdle }) => {
 
     // Fetch Lyrics
     useEffect(() => {
-        if (!artist || !title || !isExpanded) return;
+        if (!artist || !title) return; // Removed !isExpanded check so it fetches in background
 
         const fetchLyrics = async () => {
             setLoading(true);
@@ -42,7 +42,7 @@ const Lyrics = ({ audioRef, artist, title, isExpanded, isIdle }) => {
         // Debounce to avoid spamming API on rapid skips
         const timeout = setTimeout(fetchLyrics, 500);
         return () => clearTimeout(timeout);
-    }, [artist, title, isExpanded]);
+    }, [artist, title]); // Removed isExpanded dependency
 
     // Parse LRC format [mm:ss.xx] text
     const parseLrc = (lrc) => {

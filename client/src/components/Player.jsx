@@ -1,11 +1,13 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { IoPlay, IoPause, IoPlaySkipBack, IoPlaySkipForward, IoShuffle, IoRepeat, IoVolumeHigh, IoVolumeMute, IoChevronDown, IoList, IoHeart, IoHeartOutline, IoMusicalNotes, IoResize, IoExpand, IoMusicalNote, IoScan, IoClose } from 'react-icons/io5';
+import { IoPlay, IoPause, IoPlaySkipBack, IoPlaySkipForward, IoShuffle, IoRepeat, IoVolumeHigh, IoVolumeMute, IoChevronDown, IoList, IoHeart, IoHeartOutline, IoMusicalNotes, IoResize, IoExpand, IoMusicalNote, IoScan, IoClose, IoAddCircleOutline } from 'react-icons/io5';
 import Lyrics from './Lyrics';
 
 // Use environment variable for API URL in production (Vercel), fall back to relative path (proxy) in dev
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffle, repeatMode, onShuffleToggle, onRepeatToggle, cleanTitle, likedSongs = [], toggleLike, themeColor }) => {
+import { cleanTitle } from '../utils/format';
+
+const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffle, repeatMode, onShuffleToggle, onRepeatToggle, likedSongs = [], toggleLike, themeColor, hasSidebar = false, onAddPlaylist }) => {
     const audioRef = useRef(null);
     const prevVolumeRef = useRef(1);
     const [progress, setProgress] = React.useState(0);
@@ -79,8 +81,32 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
             const handleFS = () => setIsFullScreen(!!document.fullscreenElement);
             document.addEventListener('fullscreenchange', handleFS);
 
-            const titleText = meta.title || (cleanTitle ? cleanTitle(currentSong.name) : currentSong.name);
-            const artistText = meta.artist || 'DrivePlayer';
+            const cleaned = cleanTitle(currentSong.name);
+            let titleText = currentSong.title || cleaned;
+
+            // SAFE OVERRIDE (Consistent with SongList)
+            if (cleaned && titleText) {
+                const lowerClean = cleaned.toLowerCase();
+                const lowerTitle = titleText.toLowerCase();
+
+                // 1. Version Tags
+                const versionTags = ['remix', 'mix', 'dub', 'edit', 'sped up', 'spedup', 'slowed', 'reverb', 'instrumental', 'acoustic', 'demo', 'live', 'extended', 'radio', 'club', 'cover', 'version'];
+                const hasVersionTag = versionTags.some(tag => lowerClean.includes(tag));
+                const titleHasTag = versionTags.some(tag => lowerTitle.includes(tag));
+
+                if (hasVersionTag && !titleHasTag) {
+                    titleText = cleaned;
+                } else {
+                    // 2. Parentheses Mismatch (e.g. catches "(Sped Up)" or "(feat. X)")
+                    const cleanParens = cleaned.match(/[\(\[][^\)\]]+[\)\]]/g) || [];
+                    const titleParens = titleText.match(/[\(\[][^\)\]]+[\)\]]/g) || [];
+                    if (cleanParens.length > titleParens.length) {
+                        titleText = cleaned;
+                    }
+                }
+            }
+
+            const artistText = currentSong.artist || meta.artist || 'DrivePlayer';
             document.title = isPlaying ? `${titleText} • ${artistText}` : 'DrivePlayer';
 
             // MediaSession API
@@ -217,16 +243,19 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
             {/* FLOATING CAPSULE PLAYER (Mini) */}
             <div
                 className={`fixed z-50 transition-all duration-700 cubic-bezier(0.32, 0.72, 0, 1) overflow-hidden
-                    left-1/2 -translate-x-1/2 shadow-2xl
+                    left-0 right-0 mx-auto
                     ${isExpanded
-                        ? 'bottom-0 w-full h-full rounded-none' // Expanded
+                        ? 'bottom-0 w-full h-full rounded-none border border-transparent' // Expanded
                         : 'bottom-6 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini
                     } text-white`}
                 onClick={handlePlayerClick}
                 style={{
-                    willChange: 'width, height, bottom, border-radius',
+                    willChange: 'bottom, width, height, border-radius',
                     background: isExpanded
                         ? `radial-gradient(circle at 50% 30%, rgba(${themeColor || '80, 80, 80'}, 0.25), rgba(0, 0, 0, 0.95))`
+                        : undefined,
+                    boxShadow: !isExpanded
+                        ? `0 20px 50px rgba(0,0,0,0.5), 0 0 30px rgba(${themeColor || '255,255,255'}, 0.25)`
                         : undefined
                 }}
             >
@@ -270,8 +299,17 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             </div>
                         </div>
                         <div className="flex flex-col overflow-hidden">
-                            <h3 className="font-semibold text-sm truncate text-white">{meta.title || (cleanTitle ? cleanTitle(currentSong.name) : currentSong.name)}</h3>
-                            <p className="text-zinc-400 text-xs truncate">{meta.artist || 'Unknown Artist'}</p>
+                            <div className="flex items-center gap-2 overflow-hidden w-full">
+                                <h3 className="font-semibold text-sm truncate text-white min-w-0">{meta.title || currentSong.title || cleanTitle(currentSong.name)}</h3>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onAddPlaylist(currentSong); }}
+                                    className="text-zinc-400 hover:text-white transition-colors shrink-0 mt-[3px]"
+                                    title="Add to Playlist"
+                                >
+                                    <IoAddCircleOutline size={18} />
+                                </button>
+                            </div>
+                            <p className="text-zinc-400 text-xs truncate">{meta.artist || currentSong.artist || 'Unknown Artist'}</p>
                         </div>
                     </div>
 
@@ -408,8 +446,8 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 >
                                     <Lyrics
                                         audioRef={audioRef}
-                                        artist={meta.artist || ''}
-                                        title={meta.title || currentSong.name}
+                                        artist={meta.artist || currentSong.artist || ''}
+                                        title={meta.title || currentSong.title || currentSong.name}
                                         isExpanded={isExpanded}
                                         isIdle={isIdle}
                                     />
@@ -420,9 +458,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         {/* Text */}
                         <div className={`text-center space-y-1 transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0' : 'opacity-100'}`}>
                             <div className="flex items-center justify-center gap-3">
-                                <h2 className="text-3xl font-bold text-white truncate max-w-xs">{meta.title || (cleanTitle ? cleanTitle(currentSong.name) : currentSong.name)}</h2>
+                                <h2 className="text-3xl font-bold text-white truncate max-w-xs">{meta.title || currentSong.title || cleanTitle(currentSong.name)}</h2>
                             </div>
-                            <p className="text-lg text-zinc-400 font-medium">{meta.artist || 'Unknown Artist'}</p>
+                            <p className="text-lg text-zinc-400 font-medium">{meta.artist || currentSong.artist || 'Unknown Artist'}</p>
                         </div>
 
 
@@ -567,6 +605,15 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         autoPlay
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
+                        onError={(e) => {
+                            console.error("Audio Playback Error", e);
+                            const error = e.target.error;
+                            if (error && error.code === error.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+                                // Likely 403 or Network Error
+                                console.warn("Stream failed, likely rate limit or network.");
+                            }
+                            setIsPlaying(false);
+                        }}
                     />
                 )}
             </div>

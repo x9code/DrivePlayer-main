@@ -20,19 +20,69 @@ class MetadataService {
         this.driveService = driveService;
         this.cacheService = cacheService;
         this.cacheDir = cacheDir;
+        this.metadataCacheFile = path.join(cacheDir, 'metadata_cache.json');
+        this.persistentCache = {};
+        this.persistentCache = {};
+        this.loadPersistence();
+        this.scanStatus = {
+            active: false,
+            total: 0,
+            current: 0,
+            enriched: 0,
+            errors: 0
+        };
+    }
+
+    /**
+     * Get number of cached items
+     */
+    get cachedCount() {
+        return Object.keys(this.persistentCache).length;
+    }
+
+    /**
+     * Load persistent metadata from disk
+     */
+    loadPersistence() {
+        try {
+            if (fs.existsSync(this.metadataCacheFile)) {
+                const data = fs.readFileSync(this.metadataCacheFile, 'utf8');
+                this.persistentCache = JSON.parse(data);
+                console.log(`[Metadata] Loaded ${Object.keys(this.persistentCache).length} entries from persistence.`);
+            }
+        } catch (error) {
+            console.error('[Metadata] Error loading persistence:', error.message);
+            this.persistentCache = {};
+        }
+    }
+
+    /**
+     * Save persistent metadata to disk
+     */
+    savePersistence() {
+        try {
+            fs.writeFileSync(this.metadataCacheFile, JSON.stringify(this.persistentCache, null, 2));
+            console.log(`[Metadata] Saved persistence cache.`);
+        } catch (error) {
+            console.error('[Metadata] Error saving persistence:', error.message);
+        }
     }
 
     /**
      * Main entry point: Get or parse metadata
-     * Checks cache first, then parses if needed
+     * Checks persistent cache first, then memory cache, then parses
      * @param {string} fileId - Google Drive file ID
      * @returns {Promise<Object>} Normalized metadata
      */
     async getOrParseMetadata(fileId, force = false) {
-        // Check cache first (unless forced)
+        // 1. Check Persistent Cache (Fastest, survives restart)
+        if (!force && this.persistentCache[fileId]) {
+            return this.persistentCache[fileId];
+        }
+
+        // 2. Check Memory Cache (Legacy)
         if (!force && this.cacheService.has(fileId)) {
             const cached = this.cacheService.get(fileId);
-            console.log(`[Metadata] Cache hit for ${fileId}`);
             return cached;
         }
 
@@ -49,41 +99,41 @@ class MetadataService {
             // Parse metadata
             const metadata = await this.parseMetadata(fileId, fileInfo);
 
-            // Cache the result
+            // Save to Persistent Cache
+            this.persistentCache[fileId] = metadata;
+            this.savePersistence(); // Save immediately for safety (can optimize later)
+
+            // Cache the result in memory too
             await this.cacheService.set(fileId, metadata);
 
             return metadata;
         } catch (error) {
             console.error(`[Metadata] Error parsing ${fileId}:`, error.message);
-
-            // Return safe defaults on error
             return this.getSafeDefaults(fileId, error);
         }
     }
 
     /**
      * Parse metadata from audio file
-     * Downloads necessary ranges and extracts tags
+     * Uses optimized small-range download
      * @param {string} fileId - Google Drive file ID
      * @param {Object} fileInfo - File information (name, size, mimeType)
      * @returns {Promise<Object>} Parsed metadata
      */
     async parseMetadata(fileId, fileInfo) {
         const { name, size, mimeType } = fileInfo;
-
         console.log(`[Metadata] Parsing ${name} (${size} bytes, ${mimeType})`);
 
         try {
-            // Download both header and footer for complete tag extraction
-            const { stream, size: downloadedSize } = await this.driveService.downloadMetadataRanges(fileId, size);
-
+            // Optimized Download: Header + Footer only (~68KB total)
+            const { stream, size: downloadedSize } = await this.driveService.downloadOptimizedMetadata(fileId, size);
             console.log(`[Metadata] Downloaded ${downloadedSize} bytes for parsing`);
 
             // Parse using music-metadata
             const normalized = normalizeMimeType(mimeType);
             const parsed = await parseStream(stream, { mimeType: normalized }, {
                 skipPostHeaders: true,
-                skipCovers: false // We want artwork info
+                skipCovers: false // We still want artwork if in header
             });
 
             console.log(`[Metadata] Parse complete. Has picture:`, !!parsed.common?.picture?.[0]);
@@ -91,35 +141,101 @@ class MetadataService {
             // Extract and sanitize metadata
             const metadata = this.extractMetadata(parsed, name, mimeType, size);
 
-            // Handle artwork extraction to disk
+            // Extract Artwork (only if found in the small chunk)
             const picture = parsed.common?.picture?.[0];
             if (picture) {
-                console.log(`[Metadata] Extracting artwork (${picture.format}, ${picture.data.length} bytes)`);
                 try {
                     await this.saveArtwork(fileId, picture);
                     metadata.artwork = true;
-                    console.log(`[Metadata] Artwork saved successfully`);
                 } catch (artError) {
                     console.error(`[Metadata] Failed to save artwork:`, artError.message);
                     metadata.artwork = false;
                 }
             } else {
-                console.log(`[Metadata] No embedded artwork found`);
                 metadata.artwork = false;
             }
 
-            console.log(`[Metadata] Successfully parsed ${fileId}:`, {
-                title: metadata.title,
-                artist: metadata.artist,
-                album: metadata.album
-            });
-
             return metadata;
         } catch (error) {
-            console.error(`[Metadata] Parse error for ${fileId}:`, error.message);
+            // CRITICAL: Do NOT cache network/rate-limit errors as "unknown metadata"
+            if (error.message.includes('403') || error.message.includes('429') || error.message.includes('quota') || error.message.includes('Rate Limit')) {
+                console.warn(`[Metadata] Rate/Quota limit hit for ${fileId}, bubbling up error.`);
+                throw error; // Let the caller handle it (count as error, don't cache)
+            }
 
-            // Apply fallbacks using filename only
+            console.error(`[Metadata] Parse error for ${fileId}:`, error.message);
             return this.applyFilenameFallbacks(name, mimeType, size);
+        }
+    }
+
+    /**
+     * Improve a list of files with metadata in the background
+     * This is the "Smart Scan" logic
+     * @param {Array} files - List of file objects
+     * @param {boolean} force - Whether to overwrite existing cache
+     */
+    async enrichFiles(files, force = false) {
+        console.log(`[Metadata] Starting enrichment for ${files.length} files... (Force: ${force})`);
+
+        // Filter out folders first
+        const songs = files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+
+        // PREVENT RACE CONDITION: Don't start if already scanning
+        if (this.scanStatus && this.scanStatus.active) {
+            console.log(`[Metadata] Scan already in progress (Current: ${this.scanStatus.current}/${this.scanStatus.total}). Skipping new request.`);
+            return;
+        }
+
+        // Initialize Status
+        this.scanStatus = {
+            active: true,
+            total: songs.length,
+            current: 0,
+            enriched: 0,
+            errors: 0
+        };
+
+        let updatedCount = 0;
+
+        // Process with concurrency (User requested high speed)
+        const CONCURRENCY = 5; // Back to 5, now that we handle errors properly
+
+        for (let i = 0; i < songs.length; i += CONCURRENCY) {
+            const chunk = songs.slice(i, i + CONCURRENCY);
+
+            await Promise.all(chunk.map(async (file, index) => {
+                // Update global processed count (approximate is fine for UI)
+                const globalIndex = i + index;
+                this.scanStatus.current = globalIndex + 1;
+
+                // Skip if already has good metadata (heuristic) UNLESS forced
+                if (!force && this.persistentCache[file.id]) {
+                    // Already cached
+                    return;
+                }
+
+                try {
+                    // Pass force=true to getOrParseMetadata if we are forcing enrichment
+                    await this.getOrParseMetadata(file.id, force);
+                    updatedCount++;
+                    this.scanStatus.enriched++;
+                } catch (e) {
+                    console.error(`[Metadata] Failed to enrich ${file.name}:`, e.message);
+                    this.scanStatus.errors++;
+                }
+            }));
+
+            // Small breather to prevent complete API lockout
+            await new Promise(r => setTimeout(r, 50));
+        }
+
+        this.scanStatus.active = false;
+
+        if (updatedCount > 0) {
+            console.log(`[Metadata] Enrichment complete. Updated ${updatedCount} files.`);
+            this.savePersistence();
+        } else {
+            console.log(`[Metadata] Enrichment complete. No new updates.`);
         }
     }
 
@@ -267,6 +383,30 @@ class MetadataService {
         await Promise.all(workers);
 
         return results;
+    }
+
+    /**
+     * Efficiently merge cached metadata into a list of files
+     * Used for list APIs to providing titles/artists without individual lookups
+     * @param {Array} files - Array of Drive file objects
+     * @returns {Array} Enriched files
+     */
+    enrichList(files) {
+        return files.map(file => {
+            const cached = this.persistentCache[file.id];
+            if (cached) {
+                // Merge cached metadata
+                return {
+                    ...file,
+                    title: cached.title,
+                    artist: cached.artist,
+                    album: cached.album,
+                    duration: cached.duration,
+                    hasMetadata: true
+                };
+            }
+            return file;
+        });
     }
 
     /**
