@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { IoDiscOutline, IoPersonOutline, IoMusicalNote } from 'react-icons/io5';
 
 export const AlbumGrid = ({ files, onAlbumClick }) => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+
     const albums = useMemo(() => {
         const map = {};
         files.forEach(f => {
@@ -12,15 +14,15 @@ export const AlbumGrid = ({ files, onAlbumClick }) => {
                 map[albumName] = {
                     name: albumName,
                     count: 0,
-                    art: null, // Could find art from one of the songs?
+                    firstSongId: null,
                     songs: []
                 };
             }
             map[albumName].count++;
             map[albumName].songs.push(f);
-            // Try to find a song with a thumbnail to use as album art
-            if (!map[albumName].art && f.thumbnailLink) {
-                map[albumName].art = f.thumbnailLink;
+            // Use the first song's ID for album art
+            if (!map[albumName].firstSongId && f.id) {
+                map[albumName].firstSongId = f.id;
             }
         });
         return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
@@ -35,8 +37,8 @@ export const AlbumGrid = ({ files, onAlbumClick }) => {
                     className="group bg-white/5 hover:bg-white/10 rounded-xl p-4 transition-all cursor-pointer flex flex-col items-center text-center gap-3"
                 >
                     <div className="w-full aspect-square bg-zinc-800 rounded-lg shadow-lg flex items-center justify-center overflow-hidden relative">
-                        {album.art ? (
-                            <img src={album.art} alt={album.name} className="w-full h-full object-cover" />
+                        {album.firstSongId ? (
+                            <img src={`${API_BASE}/api/thumbnail/${album.firstSongId}`} alt={album.name} className="w-full h-full object-cover" />
                         ) : (
                             <IoDiscOutline className="text-4xl text-zinc-600 group-hover:text-primary transition-colors" />
                         )}
