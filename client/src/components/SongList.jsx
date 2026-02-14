@@ -14,7 +14,14 @@ const formatSize = (bytes) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
-const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, defaultCover, handleCoverUpload }) => {
+const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, thumbnailUrl, defaultCover, handleCoverUpload }) => {
+    const [imgSrc, setImgSrc] = useState(customCoverUrl);
+
+    // Reset to custom cover if it changes (e.g. re-upload)
+    React.useEffect(() => {
+        setImgSrc(customCoverUrl);
+    }, [customCoverUrl]);
+
     return (
         <div
             onClick={() => onFolderClick(folder.id)}
@@ -22,8 +29,14 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
         >
             <div className="relative w-full aspect-square rounded-2xl shadow-lg flex items-center justify-center overflow-hidden bg-zinc-800/50">
                 <img
-                    src={customCoverUrl}
-                    onError={(e) => { e.target.onerror = null; e.target.src = defaultCover; }}
+                    src={imgSrc}
+                    onError={() => {
+                        if (imgSrc === customCoverUrl && thumbnailUrl) {
+                            setImgSrc(thumbnailUrl);
+                        } else if (imgSrc !== defaultCover) {
+                            setImgSrc(defaultCover);
+                        }
+                    }}
                     alt={folder.name}
                     className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110 ${uploading === folder.id ? 'opacity-50 blur-sm' : ''} will-change-transform`}
                 />
@@ -318,6 +331,7 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                             const coverIndex = (Math.abs(hash) % 4) + 1;
                             const defaultCover = `/covers/${coverIndex}.png`;
                             const customCoverUrl = `${API_BASE}/api/folder/cover/${folder.id}?t=${cacheBuster}`;
+                            const thumbnailUrl = folder.firstSongId ? `${API_BASE}/api/thumbnail/${folder.firstSongId}` : null;
 
                             return (
                                 <FolderCard
@@ -327,6 +341,7 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                                     onFolderPlay={onFolderPlay}
                                     uploading={uploading}
                                     customCoverUrl={customCoverUrl}
+                                    thumbnailUrl={thumbnailUrl}
                                     defaultCover={defaultCover}
                                     handleCoverUpload={handleCoverUpload}
                                 />

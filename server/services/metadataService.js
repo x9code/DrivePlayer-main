@@ -21,9 +21,11 @@ class MetadataService {
         this.cacheService = cacheService;
         this.cacheDir = cacheDir;
         this.metadataCacheFile = path.join(cacheDir, 'metadata_cache.json');
+        this.folderCoversFile = path.join(cacheDir, 'folder_covers.json');
         this.persistentCache = {};
-        this.persistentCache = {};
+        this.folderCovers = {};
         this.loadPersistence();
+        this.loadFolderCovers();
         this.scanStatus = {
             active: false,
             total: 0,
@@ -65,6 +67,53 @@ class MetadataService {
             console.log(`[Metadata] Saved persistence cache.`);
         } catch (error) {
             console.error('[Metadata] Error saving persistence:', error.message);
+        }
+    }
+
+    /**
+     * Load folder covers from disk
+     */
+    loadFolderCovers() {
+        try {
+            if (fs.existsSync(this.folderCoversFile)) {
+                const data = fs.readFileSync(this.folderCoversFile, 'utf8');
+                this.folderCovers = JSON.parse(data);
+                console.log(`[Metadata] Loaded ${Object.keys(this.folderCovers).length} folder covers.`);
+            }
+        } catch (error) {
+            console.error('[Metadata] Error loading folder covers:', error.message);
+            this.folderCovers = {};
+        }
+    }
+
+    /**
+     * Save folder covers to disk
+     */
+    saveFolderCovers() {
+        try {
+            fs.writeFileSync(this.folderCoversFile, JSON.stringify(this.folderCovers, null, 2));
+        } catch (error) {
+            console.error('[Metadata] Error saving folder covers:', error.message);
+        }
+    }
+
+    /**
+     * Update folder covers based on file list
+     * Finds the first song in each folder and sets it as cover
+     * @param {Array} files - List of files (must include parent property)
+     */
+    updateFolderCovers(files) {
+        let changed = false;
+        files.forEach(f => {
+            // If file has parent, is NOT a folder, and we don't have a cover for this parent yet
+            if (f.parent && !this.folderCovers[f.parent] && f.mimeType !== 'application/vnd.google-apps.folder') {
+                this.folderCovers[f.parent] = f.id;
+                changed = true;
+            }
+        });
+        if (changed) {
+            this.saveFolderCovers();
+            console.log('[Metadata] Updated folder covers cache');
         }
     }
 
@@ -176,6 +225,9 @@ class MetadataService {
      */
     async enrichFiles(files, force = false) {
         console.log(`[Metadata] Starting enrichment for ${files.length} files... (Force: ${force})`);
+
+        // Update Folder Covers cache (Sync)
+        this.updateFolderCovers(files);
 
         // Filter out folders first
         const songs = files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
@@ -422,7 +474,7 @@ class MetadataService {
             const cached = this.persistentCache[file.id];
             if (cached) {
                 // Merge cached metadata
-                return {
+                const enriched = {
                     ...file,
                     title: cached.title,
                     artist: cached.artist,
@@ -430,7 +482,20 @@ class MetadataService {
                     duration: cached.duration,
                     hasMetadata: true
                 };
+
+                // Inject Folder Cover if it's a folder
+                if (file.mimeType === 'application/vnd.google-apps.folder' && this.folderCovers[file.id]) {
+                    enriched.firstSongId = this.folderCovers[file.id];
+                }
+
+                return enriched;
             }
+
+            // Even if not cached metadata, inject folder cover
+            if (file.mimeType === 'application/vnd.google-apps.folder' && this.folderCovers[file.id]) {
+                return { ...file, firstSongId: this.folderCovers[file.id] };
+            }
+
             return file;
         });
     }

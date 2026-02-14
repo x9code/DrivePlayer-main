@@ -109,7 +109,12 @@ app.get('/api/files', async (req, res) => {
 
         if (driveService) {
             console.log(`[API] Fetching files using driveService (paginated)`);
-            const files = await driveService.getFilesInFolder(targetFolderId);
+            let files = await driveService.getFilesInFolder(targetFolderId);
+
+            // Enrich with metadata (covers, titles, etc.)
+            if (metadataService) {
+                files = metadataService.enrichList(files);
+            }
 
             res.json({
                 files: files,

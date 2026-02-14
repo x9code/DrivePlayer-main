@@ -95,8 +95,8 @@ class DriveService {
      */
     async downloadOptimizedMetadata(fileId, fileSize) {
         try {
-            const headerSize = Math.min(524288, fileSize); // 512KB (Increased for artwork)
-            const footerSize = Math.min(4096, fileSize);  // 4KB
+            const headerSize = Math.min(1572864, fileSize); // 1.5MB (Improved for Hi-Res Art)
+            const footerSize = Math.min(16384, fileSize);  // 16KB
 
             console.log(`[Drive] Smart Scan ${fileId}: Header(${headerSize}) + Footer(${footerSize})`);
 
@@ -270,10 +270,11 @@ class DriveService {
                     const folders = items.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
                     const files = items.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
 
-                    // Attach Album Name (Folder Name)
+                    // Attach Album Name (Folder Name) & Parent ID
                     const filesWithAlbum = files.map(f => ({
                         ...f,
-                        album: currentFolderName
+                        album: currentFolderName,
+                        parent: currentFolderId
                     }));
 
                     allFiles.push(...filesWithAlbum);
