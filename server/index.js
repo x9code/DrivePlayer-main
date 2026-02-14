@@ -161,6 +161,7 @@ app.get('/api/files/recursive', async (req, res) => {
         // Correctly handle array updates
         if (cached && Array.isArray(cached.list)) {
             console.log(`[Cache] Serving recursive files for ${folderId} from cache`);
+            console.log(`[Cache] Sample file:`, cached.list[0]?.name, '- Album:', cached.list[0]?.album || 'NO ALBUM FIELD');
             return res.json({ files: cached.list });
         }
     }
@@ -178,7 +179,9 @@ app.get('/api/files/recursive', async (req, res) => {
         // 3. Enrich with Metadata (Merge titles/artists from persistent cache)
         let responseFiles = files;
         if (metadataService) {
+            console.log(`[Metadata] Enriching ${files.length} files...`);
             responseFiles = metadataService.enrichList(files);
+            console.log(`[Metadata] Sample enriched file:`, responseFiles[0]?.name, '- Album:', responseFiles[0]?.album || 'NO ALBUM FIELD');
         }
 
         // 4. Return files immediately (Fast UI)

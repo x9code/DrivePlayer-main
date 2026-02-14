@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
 import { Analytics } from "@vercel/analytics/react"
 import axios from 'axios'
 import Player from './components/Player'
@@ -412,6 +412,7 @@ function App() {
 
   const searchTimeout = useRef(null);
   const fileCache = useRef({}); // Cache for folder contents
+  const scrollPositions = useRef({}); // Track scroll positions by folder ID
 
   // Sorting Logic
   const sortedFiles = useMemo(() => {
@@ -485,6 +486,8 @@ function App() {
   // Fetch files (songs + folders)
   const fetchFiles = async (folderId = null) => {
     const cacheKey = folderId || 'root';
+
+    // Scroll saving moved to handleFolderClick/navigation events
 
     // 1. Check Cache
     if (fileCache.current[cacheKey]) {
@@ -679,12 +682,56 @@ function App() {
       fetchFiles();
     }
   }, []);
+  // Disable browser's automatic scroll restoration - REMOVED to let browser handle history
+  // useEffect(() => {
+  //   if ('scrollRestoration' in window.history) {
+  //     window.history.scrollRestoration = 'manual';
+  //   }
+  // }, []);
+
+  // Handle scroll position on folder change
+  useLayoutEffect(() => {
+    if (mainScrollRef.current) {
+      const scrollContainer = mainScrollRef.current;
+      const key = currentFolderId || 'root';
+      const savedPosition = scrollPositions.current[key];
+
+      console.log(`[Scroll Restore] Key: ${key}, Saved: ${savedPosition}, Loading: ${loading}`);
+
+      if (savedPosition !== undefined) {
+        // Restore saved position
+        console.log(`[Scroll Restore] Restoring to ${savedPosition}`);
+        scrollContainer.scrollTop = savedPosition;
+      } else {
+        // No saved position -> Scroll to top ONLY if not loading (prevents jump)
+        // If loading, we keep the previous scroll position until new content arrives
+        if (!loading) {
+          console.log(`[Scroll Restore] No saved position & Loaded. Resetting to 0`);
+          scrollContainer.scrollTop = 0;
+        }
+      }
+    }
+  }, [currentFolderId, loading]);
+
+  // Helper to save current scroll position
+  const saveScrollPosition = () => {
+    if (mainScrollRef.current) {
+      const key = currentFolderId || 'root';
+      const scrollTop = mainScrollRef.current.scrollTop;
+      if (scrollTop > 0) {
+        console.log(`[Scroll Save] Saving ${scrollTop} for key: ${key}`);
+        scrollPositions.current[key] = scrollTop;
+      }
+    }
+  };
 
   // Handle Browser Back Button (Android Gesture)
   useEffect(() => {
-    const onPopState = (event) => {
-      // If we seek/play media, that might trigger updates, but navigation is key here
+    const handlePopState = (event) => {
       const state = event.state;
+      // We don't save here because the view has likely already changed or about to. 
+      // The browser might have already restored scroll if we didn't disable it.
+
       if (state && state.folderId) {
         if (state.folderId === 'favorites') {
           setCurrentFolderId('favorites');
@@ -707,15 +754,21 @@ function App() {
       }
     };
 
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [likedSongs]); // Add likedSongs as dependency for favorites state
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [likedSongs]);
 
   const handleFolderClick = (folderId) => {
+    // Save scroll position BEFORE changing state/view
+    saveScrollPosition();
+
     if (isSearching) {
       setSearchQuery('');
       setIsSearching(false);
     }
+
+    // Show loading immediately for visual feedback
+    setLoading(true);
 
     // Push state so Back button works
     window.history.pushState({ folderId }, '', `?folder=${folderId}`);
@@ -1248,7 +1301,7 @@ function App() {
       {/* Lock Screen Overlay - Always rendered for animation */}
       <LockScreen isLocked={!isAuthenticated} onUnlock={handleUnlock} />
       <Analytics />
-    </div >
+    </div>
   )
 }
 

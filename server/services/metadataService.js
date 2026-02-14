@@ -234,8 +234,34 @@ class MetadataService {
         if (updatedCount > 0) {
             console.log(`[Metadata] Enrichment complete. Updated ${updatedCount} files.`);
             this.savePersistence();
+
+            // IMPORTANT: Clear recursive cache to force re-fetch with enriched metadata
+            this.clearRecursiveCache();
         } else {
             console.log(`[Metadata] Enrichment complete. No new updates.`);
+        }
+    }
+
+    /**
+     * Clear all cached recursive file lists
+     * Called after metadata enrichment to ensure fresh data on next fetch
+     */
+    clearRecursiveCache() {
+        if (!this.cacheService) return;
+
+        try {
+            // Get all cache keys and filter for recursive_files_ prefix
+            const allKeys = this.cacheService.getAllKeys ? this.cacheService.getAllKeys() : [];
+            const recursiveKeys = allKeys.filter(key => key.startsWith('recursive_files_'));
+
+            recursiveKeys.forEach(key => {
+                this.cacheService.delete(key);
+                console.log(`[Metadata] Cleared cache: ${key}`);
+            });
+
+            console.log(`[Metadata] Cleared ${recursiveKeys.length} recursive caches`);
+        } catch (error) {
+            console.error('[Metadata] Error clearing recursive cache:', error.message);
         }
     }
 

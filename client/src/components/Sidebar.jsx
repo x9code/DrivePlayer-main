@@ -1,7 +1,7 @@
 import { IoHome, IoHeart, IoMusicalNote, IoAdd, IoTrashOutline, IoLibrary, IoDiscOutline, IoPeopleOutline, IoSyncOutline, IoLogoGoogle, IoStatsChart, IoChevronBack, IoChevronForward } from 'react-icons/io5';
 import PlaylistCover from './PlaylistCover';
 import axios from 'axios';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -48,45 +48,46 @@ const ScanProgress = ({ isCollapsed }) => {
 
     if (isCollapsed) return null; // Hide completely when collapsed
 
+    // Minimal View when complete/idle
+    if (isComplete || isIdle) {
+        return (
+            <div className="px-4 py-3 border-t border-white/5 bg-black/20 backdrop-blur-md flex items-center justify-between group">
+                <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                    <IoSyncOutline className={status.active ? "animate-spin text-primary" : "text-zinc-600"} />
+                    <span>{cachedCount} files cached</span>
+                </div>
+
+                <button
+                    onClick={startScan}
+                    className="text-[10px] text-zinc-600 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                    title="Rescan Library"
+                >
+                    Rescan
+                </button>
+            </div>
+        );
+    }
+
+    // Active Scan View (Progress Bar)
     return (
         <div className="px-6 py-4 border-t border-white/5 bg-black/20 backdrop-blur-md">
             <div className="flex items-center justify-between text-xs text-zinc-400 mb-2">
                 <span className="flex items-center gap-2">
-                    {status.active ? (
-                        <IoSyncOutline className="animate-spin text-primary" />
-                    ) : isComplete ? (
-                        <IoSyncOutline className="text-green-500" />
-                    ) : (
-                        <IoSyncOutline className="text-yellow-500" />
-                    )}
-
-                    {status.active ? "Scanning Library..." :
-                        isComplete ? "Scanning Completed" :
-                            pending > 0 ? `${pending} files unscanned` : "Scan Paused"}
+                    <IoSyncOutline className="animate-spin text-primary" />
+                    <span>Scanning Library...</span>
                 </span>
-                <span>{status.active ? `${Math.round(percent)}%` : ''}</span>
+                <span>{Math.round(percent)}%</span>
             </div>
 
             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                 <div
-                    className={`h-full transition-all duration-300 ease-out ${status.active ? 'bg-primary' : isComplete ? 'bg-green-500' : 'bg-yellow-500'}`}
-                    style={{ width: `${status.active ? percent : isComplete ? 100 : (cachedCount / status.total * 100)}%` }}
+                    className="h-full bg-primary transition-all duration-300 ease-out"
+                    style={{ width: `${percent}%` }}
                 />
             </div>
 
             <div className="mt-2 text-[10px] text-zinc-600 truncate flex justify-between items-center">
-                <span>{status.active ? `${status.current} / ${status.total}` : `${cachedCount} / ${status.total} cached`}</span>
-
-                {isIdle && (
-                    <button
-                        onClick={startScan}
-                        className="text-primary hover:text-white hover:underline cursor-pointer"
-                    >
-                        {pending > 0 ? "Resume Scan" : "Rescan"}
-                    </button>
-                )}
-
-                {status.errors > 0 && <span className="text-red-400">{status.errors} errors</span>}
+                <span>{status.current} / {status.total}</span>
             </div>
         </div>
     );
@@ -104,6 +105,8 @@ const Sidebar = ({
 }) => {
     const [isCreating, setIsCreating] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
+    const playlistScrollRef = useRef(null);
+    const savedScrollPosition = useRef(0);
 
     const handleCreateSubmit = (e) => {
         e.preventDefault();
@@ -113,6 +116,17 @@ const Sidebar = ({
             setIsCreating(false);
         }
     };
+
+    // Restore scroll position when playlists change  
+    useEffect(() => {
+        if (playlistScrollRef.current && savedScrollPosition.current > 0) {
+            setTimeout(() => {
+                if (playlistScrollRef.current) {
+                    playlistScrollRef.current.scrollTop = savedScrollPosition.current;
+                }
+            }, 50);
+        }
+    }, [playlists]);
 
     return (
         <aside className={`bg-black/40 backdrop-blur-xl border-r border-white/5 flex flex-col h-full transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} ${className}`}>
@@ -239,7 +253,14 @@ const Sidebar = ({
             )}
 
             {/* Playlists List */}
-            <div className={`flex-1 overflow-y-auto custom-scrollbar pb-6 space-y-1 ${isCollapsed ? 'px-2' : 'px-3'}`}>
+            <div
+                ref={playlistScrollRef}
+                className={`flex-1 overflow-y-auto custom-scrollbar pb-6 space-y-1 ${isCollapsed ? 'px-2' : 'px-3'}`}
+                onScroll={(e) => {
+                    // Save scroll position as user scrolls
+                    savedScrollPosition.current = e.target.scrollTop;
+                }}
+            >
                 {playlists.map(playlist => (
                     <PlaylistItem
                         key={playlist.id}

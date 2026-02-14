@@ -166,6 +166,14 @@ class CacheService {
     }
 
     /**
+     * Get all cache keys
+     * @returns {Array<string>} Array of all cache keys
+     */
+    getAllKeys() {
+        return Array.from(this.cache.keys());
+    }
+
+    /**
      * Get cache statistics
      */
     getStats() {
