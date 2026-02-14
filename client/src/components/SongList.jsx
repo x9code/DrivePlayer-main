@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline, IoAddCircleOutline } from 'react-icons/io5';
+import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline, IoAddCircleOutline, IoCloudDownloadOutline } from 'react-icons/io5';
 import axios from 'axios';
 
 
@@ -76,6 +76,18 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
                         <IoPlay size={22} className="pl-0.5 text-black" />
                     </div>
                 </div>
+
+                {/* Download Button (Top-Right) */}
+                <div
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`${API_BASE}/api/download/folder/${folder.id}`, '_blank');
+                    }}
+                    className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full p-2.5 shadow-lg hover:scale-105 cursor-pointer border border-white/10"
+                    title="Download Folder as ZIP"
+                >
+                    <IoCloudDownloadOutline size={16} />
+                </div>
             </div>
             <div className="flex flex-col gap-0.5 px-1">
                 <h4 className="font-semibold text-base text-gray-100 truncate w-full" title={folder.name}>{folder.name}</h4>
@@ -148,6 +160,15 @@ const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLike
 
             {/* Size/Duration/Actions Column */}
             <div className="text-xs font-medium text-zinc-500 group-hover:text-zinc-400 text-right font-variant-numeric tabular-nums flex items-center justify-end gap-3">
+
+                {/* Download Button */}
+                <button
+                    onClick={(e) => { e.stopPropagation(); window.open(`${API_BASE}/api/download/${file.id}`, '_blank'); }}
+                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 focus:outline-none text-zinc-500 hover:text-white"
+                    title="Download"
+                >
+                    <IoCloudDownloadOutline size={18} />
+                </button>
 
                 {/* Add to Playlist Button */}
                 <button

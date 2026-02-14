@@ -3,7 +3,7 @@ import { Analytics } from "@vercel/analytics/react"
 import axios from 'axios'
 import Player from './components/Player'
 import SongList from './components/SongList'
-import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoLockClosedOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary } from 'react-icons/io5'
+import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoLockClosedOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline } from 'react-icons/io5'
 import LockScreen from './components/LockScreen'
 import SettingsModal from './components/SettingsModal'
 import AddToPlaylistModal from './components/AddToPlaylistModal'
@@ -1140,6 +1140,17 @@ function App() {
           >
             <IoPlay size={20} className="pl-0.5" />
           </button>
+
+          {/* Download Folder Button - Only show when inside a folder */}
+          {currentFolderId && (
+            <button
+              onClick={() => window.open(`${API_BASE}/api/download/folder/${currentFolderId}`, '_blank')}
+              className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:scale-105"
+              title="Download Folder as ZIP"
+            >
+              <IoCloudDownloadOutline size={20} />
+            </button>
+          )}
 
           {/* Library Button - Mobile Only */}
           {isMobile && (

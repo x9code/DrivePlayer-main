@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
+const archiver = require('archiver');
 
 // Import new services
 const CacheService = require('./services/cacheService');
@@ -519,6 +520,93 @@ app.get('/api/stream/:fileId', async (req, res) => {
     } catch (error) {
         console.error('[Stream] Fatal Error:', error.message);
         if (!res.headersSent) res.status(500).send('Error streaming file');
+    }
+});
+
+// --- Download Endpoints ---
+
+// API: Download Single File
+app.get('/api/download/:fileId', async (req, res) => {
+    if (!driveClient) return res.status(500).json({ error: 'Drive not authenticated' });
+
+    const fileId = req.params.fileId;
+
+    try {
+        // Get file metadata for name and size
+        const fileMeta = await driveService.getFileMetadata(fileId);
+        const fileName = fileMeta.name || `${fileId}.mp3`;
+        const fileSize = parseInt(fileMeta.size, 10);
+
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        if (fileSize) res.setHeader('Content-Length', fileSize);
+
+        const stream = await driveService.streamFile(fileId);
+        stream
+            .on('error', (err) => {
+                console.error(`[Download] Stream error for ${fileId}:`, err.message);
+                if (!res.headersSent) res.status(500).end();
+            })
+            .pipe(res);
+    } catch (error) {
+        console.error('[Download] Error:', error.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Download failed' });
+    }
+});
+
+// API: Download Folder as ZIP
+app.get('/api/download/folder/:folderId', async (req, res) => {
+    if (!driveClient || !driveService) return res.status(500).json({ error: 'Drive not authenticated' });
+
+    const folderId = req.params.folderId;
+
+    try {
+        // Get folder name
+        let folderName = 'DrivePlayer-Download';
+        try {
+            const folderMeta = await driveService.getFileMetadata(folderId);
+            folderName = folderMeta.name || folderName;
+        } catch (e) { /* fallback name */ }
+
+        // Get all files in folder (non-recursive, just immediate children)
+        const files = await driveService.getFilesInFolder(folderId);
+        const songs = files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+
+        if (songs.length === 0) {
+            return res.status(404).json({ error: 'No files found in this folder' });
+        }
+
+        console.log(`[Download] Creating ZIP for folder "${folderName}" with ${songs.length} files`);
+
+        // Set response headers for ZIP download
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(folderName)}.zip"`);
+        res.setHeader('Content-Type', 'application/zip');
+
+        const archive = archiver('zip', { zlib: { level: 0 } }); // No compression (music is already compressed)
+
+        archive.on('error', (err) => {
+            console.error('[Download] Archive error:', err.message);
+            if (!res.headersSent) res.status(500).end();
+        });
+
+        archive.pipe(res);
+
+        // Stream each file into the archive
+        for (const song of songs) {
+            try {
+                const stream = await driveService.streamFile(song.id);
+                archive.append(stream, { name: song.name });
+            } catch (fileErr) {
+                console.error(`[Download] Failed to add ${song.name}: ${fileErr.message}`);
+                // Skip failed files, continue with others
+            }
+        }
+
+        await archive.finalize();
+        console.log(`[Download] ZIP finalized for "${folderName}"`);
+    } catch (error) {
+        console.error('[Download] Folder ZIP error:', error.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Download failed' });
     }
 });
 
