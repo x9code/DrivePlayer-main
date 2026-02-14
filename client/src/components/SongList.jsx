@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline, IoAddCircleOutline, IoCloudDownloadOutline } from 'react-icons/io5';
+import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline, IoAddCircleOutline, IoCloudDownloadOutline, IoEllipsisVertical } from 'react-icons/io5';
 import axios from 'axios';
 
 
@@ -16,6 +16,7 @@ const formatSize = (bytes) => {
 
 const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, thumbnailUrl, defaultCover, handleCoverUpload }) => {
     const [imgSrc, setImgSrc] = useState(customCoverUrl);
+    const [showMenu, setShowMenu] = useState(false);
 
     // Reset to custom cover if it changes (e.g. re-upload)
     React.useEffect(() => {
@@ -25,7 +26,7 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
     return (
         <div
             onClick={() => onFolderClick(folder.id)}
-            className="group bg-white/5 backdrop-blur-2xl border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all duration-500 p-4 rounded-3xl cursor-pointer flex flex-col gap-4 shadow-2xl hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] hover:-translate-y-1 relative"
+            className="group bg-white/5 backdrop-blur-2xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-500 p-3 rounded-[2rem] cursor-pointer flex flex-col gap-3 shadow-2xl hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)] hover:-translate-y-1 relative"
         >
             <div className="relative w-full aspect-square rounded-2xl shadow-lg flex items-center justify-center overflow-hidden bg-zinc-800/50">
                 <img
@@ -51,10 +52,10 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
                 {/* Edit Button (Top-Left) */}
                 <label
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute left-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full p-2.5 shadow-lg hover:scale-105 cursor-pointer border border-white/10"
+                    className="absolute left-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full p-2 shadow-lg hover:scale-105 cursor-pointer border border-white/10"
                     title="Change Cover Image"
                 >
-                    <IoPencil size={16} />
+                    <IoPencil size={14} />
                     <input
                         type="file"
                         accept="image/*"
@@ -63,35 +64,61 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
                     />
                 </label>
 
-                {/* Play Button (Bottom-Right) */}
+                {/* Play Button (Bottom-Right) — Compact */}
                 <div className="absolute right-3 bottom-3 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 ease-out z-10">
                     <div
                         onClick={(e) => {
                             e.stopPropagation();
                             onFolderPlay(folder.id);
                         }}
-                        className="bg-white/90 rounded-full p-3.5 text-black shadow-xl hover:scale-105 transition-transform hover:bg-white"
+                        className="bg-white/90 rounded-full p-2.5 text-black shadow-xl hover:scale-105 transition-transform hover:bg-white"
                         title="Play Folder (Shuffle)"
                     >
-                        <IoPlay size={22} className="pl-0.5 text-black" />
+                        <IoPlay size={16} className="pl-0.5 text-black" />
                     </div>
                 </div>
-
-                {/* Download Button (Top-Right) */}
-                <div
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(`${API_BASE}/api/download/folder/${folder.id}`, '_blank');
-                    }}
-                    className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full p-2.5 shadow-lg hover:scale-105 cursor-pointer border border-white/10"
-                    title="Download Folder as ZIP"
-                >
-                    <IoCloudDownloadOutline size={16} />
-                </div>
             </div>
-            <div className="flex flex-col gap-0.5 px-1">
-                <h4 className="font-semibold text-base text-gray-100 truncate w-full" title={folder.name}>{folder.name}</h4>
-                <p className="text-xs font-medium text-gray-400">Folder</p>
+
+            {/* Footer: Folder Name + 3-Dot Menu */}
+            <div className="flex items-start justify-between gap-2 px-1 pb-1">
+                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                    <h4 className="font-semibold text-[15px] leading-tight text-gray-100 line-clamp-2 w-full" title={folder.name}>{folder.name}</h4>
+                    <p className="text-[11px] font-medium text-gray-400">Folder</p>
+                </div>
+
+                {/* 3-Dot Menu */}
+                <div className="relative shrink-0">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMenu(!showMenu);
+                        }}
+                        className="text-zinc-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+                        title="More Options"
+                    >
+                        <IoEllipsisVertical size={18} />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {showMenu && (
+                        <>
+                            <div className="fixed inset-0 z-[60]" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }}></div>
+                            <div className="absolute right-0 bottom-full mb-2 w-48 bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden p-1.5 z-[70] shadow-[0_10px_30px_rgba(0,0,0,0.8)] animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.open(`${API_BASE}/api/download/folder/${folder.id}`, '_blank');
+                                        setShowMenu(false);
+                                    }}
+                                    className="w-full text-left px-3 py-3 rounded-xl text-sm text-zinc-300 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-colors font-medium"
+                                >
+                                    <IoCloudDownloadOutline size={18} className="text-primary" />
+                                    <span>Download ZIP</span>
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     );

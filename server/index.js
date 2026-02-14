@@ -610,6 +610,56 @@ app.get('/api/download/folder/:folderId', async (req, res) => {
     }
 });
 
+// API: Download Album as ZIP
+app.get('/api/download/album', async (req, res) => {
+    if (!driveClient || !metadataService) return res.status(500).json({ error: 'Services not initialized' });
+
+    const albumName = req.query.name;
+    if (!albumName) return res.status(400).json({ error: 'Album name required' });
+
+    try {
+        // Find all songs in this album from persistent cache
+        const songs = Object.entries(metadataService.persistentCache)
+            .filter(([id, meta]) => meta.album === albumName)
+            .map(([id, meta]) => ({
+                id,
+                name: meta.filename || `${meta.title || 'track'}.mp3`
+            }));
+
+        if (songs.length === 0) {
+            return res.status(404).json({ error: 'No songs found for this album in cache. Please scan library.' });
+        }
+
+        console.log(`[Download] Creating ZIP for album "${albumName}" with ${songs.length} files`);
+
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(albumName)}.zip"`);
+        res.setHeader('Content-Type', 'application/zip');
+
+        const archive = archiver('zip', { zlib: { level: 0 } });
+        archive.on('error', (err) => {
+            console.error('[Download] Album Archive error:', err.message);
+            if (!res.headersSent) res.status(500).end();
+        });
+
+        archive.pipe(res);
+
+        for (const song of songs) {
+            try {
+                const stream = await driveService.streamFile(song.id);
+                archive.append(stream, { name: song.name });
+            } catch (fileErr) {
+                console.error(`[Download] Failed to add ${song.name}: ${fileErr.message}`);
+            }
+        }
+
+        await archive.finalize();
+        console.log(`[Download] Album ZIP finalized for "${albumName}"`);
+    } catch (error) {
+        console.error('[Download] Album ZIP error:', error.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Download failed' });
+    }
+});
+
 // --- Telegram OTP System ---
 const TelegramBot = require('node-telegram-bot-api');
 let bot = null;
