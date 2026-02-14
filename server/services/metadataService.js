@@ -104,16 +104,74 @@ class MetadataService {
      */
     updateFolderCovers(files) {
         let changed = false;
+
+        // 1. Build Index: Parent -> Children (Files & Folders)
+        const childrenMap = {}; // parentId -> [items]
+
         files.forEach(f => {
-            // If file has parent, is NOT a folder, and we don't have a cover for this parent yet
-            if (f.parent && !this.folderCovers[f.parent] && f.mimeType !== 'application/vnd.google-apps.folder') {
-                this.folderCovers[f.parent] = f.id;
-                changed = true;
+            // We need parent ID to build the tree
+            if (f.parent) {
+                if (!childrenMap[f.parent]) {
+                    childrenMap[f.parent] = [];
+                }
+                childrenMap[f.parent].push(f);
             }
         });
+
+        // 2. Recursive Resolver
+        // Returns the File ID of the best cover found
+        const resolveCover = (folderId, depth = 0) => {
+            if (depth > 5) return null; // Safety break
+
+            const children = childrenMap[folderId] || [];
+
+            // A. Check for DIRECT files first
+            const directFiles = children.filter(c => c.mimeType !== 'application/vnd.google-apps.folder');
+
+            // Preference 1: Direct file WITH artwork
+            const artFile = directFiles.find(f => {
+                const meta = this.persistentCache[f.id];
+                return meta && meta.artwork === true;
+            });
+            if (artFile) return artFile.id;
+
+            // Preference 2: Sub-folders (Bubble Up) - Prefer sub-folders that HAVE artwork
+            const subFolders = children.filter(c => c.mimeType === 'application/vnd.google-apps.folder');
+
+            for (const sub of subFolders) {
+                // Check if we already have a calculated cover for this subfolder
+                let subCoverId = this.folderCovers[sub.id];
+
+                // If not, try to resolve it now (DFS)
+                if (!subCoverId) {
+                    subCoverId = resolveCover(sub.id, depth + 1);
+                }
+
+                // If found a valid cover from subfolder, usage it!
+                if (subCoverId) return subCoverId;
+            }
+
+            // Preference 3: Fallback to ANY direct file if no artwork found anywhere
+            // We do this last to ensure we don't pick a "no-art" file if a subfolder has "good-art"
+            return directFiles[0] ? directFiles[0].id : null;
+        };
+
+        // 3. Process all folders found in this batch + their parents (via childrenMap)
+        Object.keys(childrenMap).forEach(folderId => {
+            const idealCover = resolveCover(folderId);
+
+            if (idealCover) {
+                // Update if different from current
+                if (this.folderCovers[folderId] !== idealCover) {
+                    this.folderCovers[folderId] = idealCover;
+                    changed = true;
+                }
+            }
+        });
+
         if (changed) {
             this.saveFolderCovers();
-            console.log('[Metadata] Updated folder covers cache');
+            console.log('[Metadata] Updated folder covers cache (Recursive Bubble-up)');
         }
     }
 
@@ -226,9 +284,6 @@ class MetadataService {
     async enrichFiles(files, force = false) {
         console.log(`[Metadata] Starting enrichment for ${files.length} files... (Force: ${force})`);
 
-        // Update Folder Covers cache (Sync)
-        this.updateFolderCovers(files);
-
         // Filter out folders first
         const songs = files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
 
@@ -287,10 +342,15 @@ class MetadataService {
             console.log(`[Metadata] Enrichment complete. Updated ${updatedCount} files.`);
             this.savePersistence();
 
+            // Re-evaluate folder covers now that we have fresh metadata/artwork status
+            this.updateFolderCovers(songs);
+
             // IMPORTANT: Clear recursive cache to force re-fetch with enriched metadata
             this.clearRecursiveCache();
         } else {
             console.log(`[Metadata] Enrichment complete. No new updates.`);
+            // Still run update covers update in case logic changed or files reordered
+            this.updateFolderCovers(songs);
         }
     }
 

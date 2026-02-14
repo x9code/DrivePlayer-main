@@ -997,13 +997,7 @@ function App() {
     }
   };
 
-  const handleGoHome = () => {
-    setSearchQuery('');
-    setIsSearching(false);
-    setCurrentFolderId(null);
-    fetchFiles(null);
-    window.history.pushState(null, '', '/');
-  };
+
 
 
 
@@ -1067,11 +1061,7 @@ function App() {
               <IoArrowBack size={20} />
             </button>
           )}
-          <div
-            onClick={handleGoHome}
-            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity min-w-0 group"
-          >
-
+          <div className="flex items-center gap-3 min-w-0">
             <h1 className="text-xl font-semibold tracking-tight hidden md:block truncate drop-shadow-sm">{currentFolderName || 'DrivePlayer'}</h1>
           </div>
         </div>

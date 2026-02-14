@@ -277,7 +277,16 @@ class DriveService {
                         parent: currentFolderId
                     }));
 
-                    allFiles.push(...filesWithAlbum);
+                    // Also include key folder info for hierarchy reconstruction
+                    const folderObjects = folders.map(f => ({
+                        id: f.id,
+                        name: f.name,
+                        mimeType: f.mimeType,
+                        parent: currentFolderId,
+                        isFolder: true
+                    }));
+
+                    allFiles.push(...filesWithAlbum, ...folderObjects);
 
                     if (folders.length > 0 && allFiles.length < maxFiles) {
                         // Pass folder.name as the new album name for children
@@ -334,7 +343,13 @@ class DriveService {
 
                 console.log(`[Drive] Page fetched: ${rawFiles.length} items. Kept ${filtered.length} (Folders/Audio).`);
 
-                allFiles.push(...filtered);
+                // Inject parent ID for consistency with recursive fetch
+                const mapped = filtered.map(f => ({
+                    ...f,
+                    parent: folderId
+                }));
+
+                allFiles.push(...mapped);
                 pageToken = res.data.nextPageToken;
 
                 if (pageToken) {
