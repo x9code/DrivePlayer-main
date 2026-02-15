@@ -7,9 +7,12 @@ const path = require('path');
 const archiver = require('archiver');
 
 // Import new services
+// Import new services
 const CacheService = require('./services/cacheService');
 const DriveService = require('./services/driveService');
 const MetadataService = require('./services/metadataService');
+const LocalLibraryService = require('./services/libraryService'); // Rename to avoid conflict if any
+const SyncService = require('./services/syncService');
 
 dotenv.config();
 
@@ -71,7 +74,13 @@ async function initializeServices() {
         await cacheService.init();
         metadataService = new MetadataService(driveService, cacheService, CACHE_DIR);
 
+        // Initialize SyncService with DriveService instance
+        SyncService.init(driveService);
+
         console.log('[Services] All services initialized successfully');
+
+        // Trigger Background Sync (Bootstrap or Delta)
+        SyncService.startSync().catch(err => console.error('[Sync] Startup sync failed:', err));
     } else {
         console.error('[Services] Failed to initialize - Drive client not authenticated');
     }
@@ -152,57 +161,45 @@ app.get('/api/files', async (req, res) => {
     }
 });
 
-// API: Recursive File Fetch (for Folder Play / Global Shuffle)
+// API: Recursive File Fetch (Now Instant from DB)
 app.get('/api/files/recursive', async (req, res) => {
-    if (!driveClient) return res.status(500).json({ error: 'Drive not authenticated' });
-
-    const folderId = req.query.folderId;
-    if (!folderId) return res.status(400).json({ error: 'Folder ID required' });
-
-    const cacheKey = `recursive_files_${folderId}`;
-
-    // 1. Check Cache (if service available)
-    if (cacheService && cacheService.has(cacheKey)) {
-        const cached = cacheService.get(cacheKey);
-        // Correctly handle array updates
-        if (cached && Array.isArray(cached.list)) {
-            console.log(`[Cache] Serving recursive files for ${folderId} from cache`);
-            console.log(`[Cache] Sample file:`, cached.list[0]?.name, '- Album:', cached.list[0]?.album || 'NO ALBUM FIELD');
-            return res.json({ files: cached.list });
-        }
-    }
-
     try {
-        console.log(`Fetch recursive: ${folderId}`);
-        const files = await driveService.getFilesRecursive(folderId);
-        console.log(`Found ${files.length} files recursively`);
+        console.log('[API] Fetching all files from Local DB');
+        const files = await LocalLibraryService.getAllFiles();
 
-        // 2. Set Cache (Wrap in object to prevent array spread corruption)
-        if (cacheService) {
-            await cacheService.set(cacheKey, { list: files });
+        console.log(`[API] Returning ${files.length} files from DB`);
+        res.json({ files: files });
+
+        // Trigger background sync if empty
+        if (files.length === 0) {
+            console.log('[API] Library empty, triggering bootstrap sync...');
+            SyncService.startSync().catch(err => console.error(err));
         }
-
-        // 3. Enrich with Metadata (Merge titles/artists from persistent cache)
-        let responseFiles = files;
-        if (metadataService) {
-            console.log(`[Metadata] Enriching ${files.length} files...`);
-            responseFiles = metadataService.enrichList(files);
-            console.log(`[Metadata] Sample enriched file:`, responseFiles[0]?.name, '- Album:', responseFiles[0]?.album || 'NO ALBUM FIELD');
-        }
-
-        // 4. Return files immediately (Fast UI)
-        res.json({ files: responseFiles });
-
-        // 5. Trigger Background Metadata Enrichment (Smart Scan)
-        if (metadataService) {
-            // Run asynchronously, don't await
-            metadataService.enrichFiles(files).catch(err =>
-                console.error('[Background] Enrichment error:', err.message)
-            );
-        }
-
     } catch (error) {
-        console.error('Recursive fetch error:', error);
+        console.error('[API] Error fetching files:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// API: Trigger Sync
+app.post('/api/sync/trigger', (req, res) => {
+    SyncService.startSync(); // Run in background
+    res.status(202).json({ message: 'Sync started' });
+});
+
+// API: Sync Status
+app.get('/api/sync/status', async (req, res) => {
+    try {
+        const status = {
+            isSyncing: SyncService.isSyncing,
+            lastSyncTime: await LocalLibraryService.getSyncState('lastSyncTime'),
+            lastSuccessfulSyncTime: await LocalLibraryService.getSyncState('lastSuccessfulSyncTime'),
+            syncError: await LocalLibraryService.getSyncState('syncError'),
+            // Add stats
+            stats: await LocalLibraryService.getStats()
+        };
+        res.json(status);
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
@@ -396,6 +393,16 @@ app.get('/api/folder/cover/:folderId', (req, res) => {
 app.get('/api/thumbnail/:fileId', async (req, res) => {
     const fileId = req.params.fileId;
     const cachePath = path.join(CACHE_DIR, `${fileId}`);
+
+    // 0. Check Local DB for specialized artwork (iTunes / Drive Link) - Fastest
+    try {
+        const file = await LocalLibraryService.getFile(fileId);
+        if (file && file.picture && file.picture.startsWith('http')) {
+            return res.redirect(file.picture);
+        }
+    } catch (e) {
+        console.warn(`[API] DB lookup failed for thumbnail ${fileId}`, e.message);
+    }
 
     // 1. Check Disk Cache
     if (fs.existsSync(cachePath)) {

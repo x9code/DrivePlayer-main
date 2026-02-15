@@ -15,6 +15,8 @@ const {
     normalizeMimeType
 } = require('../utils/sanitizer');
 
+const ArtService = require('./artService');
+
 class MetadataService {
     constructor(driveService, cacheService, cacheDir) {
         this.driveService = driveService;
@@ -302,6 +304,10 @@ class MetadataService {
             errors: 0
         };
 
+        // Pre-enrich the songs array with cached/fallback data so ArtService has tags
+        // (Fast in-memory operation)
+        const enrichedSongs = this.enrichList(songs);
+
         let updatedCount = 0;
 
         // Process with concurrency (User requested high speed)
@@ -350,8 +356,13 @@ class MetadataService {
         } else {
             console.log(`[Metadata] Enrichment complete. No new updates.`);
             // Still run update covers update in case logic changed or files reordered
+            // Still run update covers update in case logic changed or files reordered
             this.updateFolderCovers(songs);
         }
+
+        // Phase 2: Enrich with Online Art (Async, don't block main flow too long)
+        console.log('[Metadata] checks for missing online art...');
+        await ArtService.enrichMissingArt(enrichedSongs);
     }
 
     /**
@@ -414,6 +425,7 @@ class MetadataService {
             album,
             duration,
             artwork: hasArtwork,
+            picture: hasArtwork ? null : null, // We'll populate this via ArtService or Drive Thumbnail
             fileSize: fileSize,
             mimeType: normalizeMimeType(mimeType),
             filename: filename,
@@ -531,32 +543,43 @@ class MetadataService {
      */
     enrichList(files) {
         return files.map(file => {
+            let enriched = { ...file };
             const cached = this.persistentCache[file.id];
+
             if (cached) {
                 // Merge cached metadata
-                const enriched = {
-                    ...file,
+                enriched = {
+                    ...enriched,
                     title: cached.title,
                     artist: cached.artist,
                     album: cached.album,
                     duration: cached.duration,
                     hasMetadata: true
                 };
-
-                // Inject Folder Cover if it's a folder
-                if (file.mimeType === 'application/vnd.google-apps.folder' && this.folderCovers[file.id]) {
-                    enriched.firstSongId = this.folderCovers[file.id];
-                }
-
-                return enriched;
             }
 
-            // Even if not cached metadata, inject folder cover
-            if (file.mimeType === 'application/vnd.google-apps.folder' && this.folderCovers[file.id]) {
-                return { ...file, firstSongId: this.folderCovers[file.id] };
+            // Fallback: If artist/album/title missing, try parsing from filename
+            if (!enriched.artist || enriched.artist === 'Unknown Artist') {
+                enriched.artist = parseArtistFromFilename(enriched.name) || 'Unknown Artist';
+            }
+            if (!enriched.title || enriched.title === 'Unknown Title') {
+                enriched.title = parseFilename(enriched.name) || 'Unknown Title';
+            }
+            if (!enriched.album) {
+                enriched.album = 'Unknown Album';
             }
 
-            return file;
+            // Inject Folder Cover if it's a folder
+            if (enriched.mimeType === 'application/vnd.google-apps.folder' && this.folderCovers[enriched.id]) {
+                enriched.firstSongId = this.folderCovers[enriched.id];
+            }
+
+            // Ensure picture property is populated from Drive thumbnail if not in metadata
+            if (!enriched.picture && enriched.thumbnailLink) {
+                enriched.picture = enriched.thumbnailLink;
+            }
+
+            return enriched;
         });
     }
 

@@ -15,7 +15,9 @@
     "googleapis": "^126.0.1",
     "multer": "^2.0.2",
     "music-metadata": "^11.11.1",
-    "node-telegram-bot-api": "^0.67.0"
+    "node-telegram-bot-api": "^0.67.0",
+    "sqlite3": "^5.1.7",
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

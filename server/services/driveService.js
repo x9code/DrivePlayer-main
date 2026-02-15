@@ -87,22 +87,53 @@ class DriveService {
 
     /**
      * Download optimized ranges for metadata (Header + Footer)
-     * Header: 64KB (Cover ID3v2, most FLAC headers)
-     * Footer: 4KB (Cover ID3v1)
+     * Smart Scan: Checks ID3 header to download EXACT size needed
      * @param {string} fileId - File ID
      * @param {number} fileSize - Total file size
      * @returns {Promise<{stream: Readable, size: number}>}
      */
     async downloadOptimizedMetadata(fileId, fileSize) {
         try {
-            const headerSize = Math.min(1572864, fileSize); // 1.5MB (Improved for Hi-Res Art)
-            const footerSize = Math.min(16384, fileSize);  // 16KB
+            // Step 1: Probe the header (First 16 bytes)
+            // ID3v2 Header is 10 bytes. We get a bit more.
+            const probeBuffer = await this.downloadRange(fileId, 0, 15);
 
-            console.log(`[Drive] Smart Scan ${fileId}: Header(${headerSize}) + Footer(${footerSize})`);
+            let headerSize = 1572864; // Default: 1.5MB (Safe fallback)
+            const footerSize = Math.min(16384, fileSize);  // 16KB for ID3v1
 
-            // Check if file is too small to have separate footer
+            // Step 2: Check for ID3v2 Header
+            if (probeBuffer.slice(0, 3).toString() === 'ID3') {
+                const sizeBytes = probeBuffer.slice(6, 10);
+
+                // Parse Synchsafe Integer (7-bit bytes)
+                // (byte1 << 21) | (byte2 << 14) | (byte3 << 7) | byte4
+                const tagSize = (
+                    ((sizeBytes[0] & 0x7F) << 21) |
+                    ((sizeBytes[1] & 0x7F) << 14) |
+                    ((sizeBytes[2] & 0x7F) << 7) |
+                    (sizeBytes[3] & 0x7F)
+                );
+
+                const id3HeaderSize = 10;
+                // We add 64KB buffer for the first audio frame (Duration/Bitrate VBR headers)
+                const safeAudioBuffer = 65536;
+
+                const calculatedDownload = tagSize + id3HeaderSize + safeAudioBuffer;
+
+                if (calculatedDownload < headerSize) {
+                    console.log(`[Drive] Smart Scan ${fileId}: Detected ID3v2 tag (${tagSize} bytes). Optimized fetch: ${(calculatedDownload / 1024).toFixed(1)} KB`);
+                    headerSize = calculatedDownload;
+                } else {
+                    console.log(`[Drive] Smart Scan ${fileId}: Large ID3v2 tag detected. Using calculated size: ${(calculatedDownload / 1024).toFixed(1)} KB`);
+                    // If tag is HUGE (e.g. 5MB), we should probably respect it to get the art
+                    headerSize = Math.min(calculatedDownload, fileSize);
+                }
+            } else {
+                console.log(`[Drive] Smart Scan ${fileId}: No ID3 header. Using safe 1.5MB fallback.`);
+            }
+
+            // Check if file is small enough to download fully
             if (fileSize <= headerSize + footerSize) {
-                // Just download the whole thing if it's tiny
                 const buffer = await this.downloadRange(fileId, 0, fileSize - 1);
                 const { PassThrough } = require('stream');
                 const stream = new PassThrough();
@@ -110,22 +141,13 @@ class DriveService {
                 return { stream, size: buffer.length };
             }
 
-            // Download ranges
+            // Step 3: Download calculated ranges
             const [header, footer] = await Promise.all([
                 this.downloadRange(fileId, 0, headerSize - 1),
                 this.downloadRange(fileId, fileSize - footerSize, fileSize - 1)
             ]);
 
-            // Combine only if music-metadata can handle gaps?
-            // Actually, music-metadata 'parseStream' expects a continuous stream or a random-access reader.
-            // For a stream, we can just concatenate header + padding + footer?
-            // NO, `music-metadata` might stop if it hits garbage.
-            // BETTER: metadataService should handle the specific logic. 
-            // BUT for now, let's just return the concatenated buffer. 
-            // Most parsers are robust enough to find ID3 at start and ID3v1 at end.
-
             const combined = Buffer.concat([header, footer]);
-
             const { PassThrough } = require('stream');
             const stream = new PassThrough();
             stream.end(combined);
@@ -319,7 +341,7 @@ class DriveService {
                 // Fetching everything and filtering in-memory ensures we see what Drive actually has.
                 const res = await this.driveClient.files.list({
                     q: `'${folderId}' in parents and trashed = false`,
-                    fields: 'nextPageToken, files(id, name, mimeType, size, thumbnailLink, createdTime, fileExtension)',
+                    fields: 'nextPageToken, files(id, name, mimeType, size, thumbnailLink, createdTime, fileExtension, md5Checksum)',
                     orderBy: 'folder, name',
                     pageSize: 1000,
                     pageToken: pageToken
@@ -361,6 +383,46 @@ class DriveService {
             return allFiles;
         } catch (error) {
             console.error(`[Drive] Error listing files in folder ${folderId}:`, error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Get start page token for tracking changes
+     * @returns {Promise<string>} Start Page Token
+     */
+    async getStartPageToken() {
+        try {
+            const res = await this.driveClient.changes.getStartPageToken({});
+            return res.data.startPageToken;
+        } catch (error) {
+            console.error('[Drive] Error getting start page token:', error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Get changes since page token
+     * @param {string} pageToken - Token from previous sync
+     * @returns {Promise<{changes: Array, newStartPageToken: string}>}
+     */
+    async getChanges(pageToken) {
+        try {
+            const res = await this.driveClient.changes.list({
+                pageToken: pageToken,
+                fields: 'newStartPageToken, nextPageToken, changes(fileId, removed, file(id, name, mimeType, size, createdTime, modifiedTime, md5Checksum, parents, trashed))',
+                pageSize: 100
+            });
+
+            return {
+                changes: res.data.changes,
+                newStartPageToken: res.data.newStartPageToken || res.data.nextPageToken
+                // Note: newStartPageToken is only returned on the last page. 
+                // If there are more pages, use nextPageToken.
+                // Logic needs to handle pagination if many changes.
+            };
+        } catch (error) {
+            console.error('[Drive] Error fetching changes:', error.message);
             throw error;
         }
     }

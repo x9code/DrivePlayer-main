@@ -103,6 +103,16 @@ function App() {
     });
   };
 
+  const handleGoHome = () => {
+    setSearchQuery('');
+    setIsSearching(false);
+    setCurrentFolderId(null);
+    setCurrentFolderName('Library');
+    fetchFiles(null);
+    window.history.pushState({}, '', '/');
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+  };
+
   // Nav helper for Sidebar
   const handleSidebarNavigate = (id) => {
     if (id === null) {
