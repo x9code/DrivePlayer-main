@@ -1,0 +1,154 @@
+[Database] Schema initialized/verified
+Authenticated with Service Account
+Telegram Bot Initialized
+Server running on port 5000
+[Database] Connected to library.db
+[Cache] Successfully loaded 1164 entries
+[Cache] Loaded 1164 entries from disk
+[Metadata] Loaded 3881 entries from persistence.
+[Metadata] Loaded 192 folder covers.
+[Sync] Service initialized with DriveService instance
+[Services] All services initialized successfully
+[Sync] Starting sync process...
+[Sync] Page token found. Starting DELTA Sync...
+[Sync] Sync completed successfully.
+[Metadata] Force Rescan triggered by user
+[Metadata] Rescan: Syncing file structure to DB...
+[Debug] File: 01. Music Of The Spheres I.flac, InputParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH, MappedParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH
+[Debug] File: 01. Music Of The Spheres I.flac, InputParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH, MappedParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH
+[Debug] File: 02. Higher Power.flac, InputParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH, MappedParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH
+[Debug] File: 02. Higher Power.flac, InputParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH, MappedParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH
+[Debug] File: 03. Humankind.flac, InputParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH, MappedParent: 1RngvZoKph-lssrMF5PPLSuVn2YTy69sH
+[Metadata] DB Structure updated successfully.
+[Metadata] Starting enrichment for 4023 files... (Force: false)
+[Metadata] Enrichment complete. No new updates.
+[Metadata] checks for missing online art...
+[ArtService] Checking 3819 files for art enrichment...
+[ArtService] Grouped into 1144 albums and 721 singles/unknowns.
+[ArtService] Fetching from Deezer: Coldplay - Music Of The Spheres
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Music Of The Spheres"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Coldplay - Music Of The Spheres
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Music Of The Spheres"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Coldplay, We Are KING - Music Of The Spheres
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Music Of The Spheres"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Coldplay - Music Of The Spheres
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Music Of The Spheres"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Coldplay - A Rush of Blood to the Head
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "A Rush of Blood to the Head"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Ludwig Goransson - Oppenheimer (Original Motion Picture Soundtrack)
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Oppenheimer (Original Motion Picture Soundtrack)"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Zacari - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Ab-Soul - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Jay Rock - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Jorja Smith - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Kendrick Lamar - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: ScHoolboy Q - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: SOB - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Khalid - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Kendrick Lamar - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Vince Staples - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Zacari - Black Panther The Album Music From And Inspired By
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Black Panther The Album Music From And Inspired By"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Olivia Rodrigo - SOUR
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "SOUR"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Olivia Rodrigo - GUTS
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "GUTS"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Olivia Rodrigo - The Hunger Games: The Ballad of Songbirds & Snakes (Music From & Inspired By)
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "The Hunger Games: The Ballad of Songbirds & Snakes (Music From & Inspired By)"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: JISOO - ME
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: JISOO - EYES CLOSED
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "EYES CLOSED"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Jennie - Ruby
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Ruby"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Tate McRae - THINK LATER
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "THINK LATER"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Tate McRae - So Close To What
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "So Close To What"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Tate McRae - So Close To What
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "So Close To What"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Tate McRae - So Close To What
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "So Close To What"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Indila - Mini World
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Mini World"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Michael Bublé - The Best of Bublé
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "The Best of Bublé"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: Lisa - Alter Ego
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Alter Ego"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: LISA - Alter Ego
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "Alter Ego"
+[ArtService] No results found on Deezer.
+[ArtService] Fetching from Deezer: LISA - LALISA
+[ArtService] Strict search failed. Trying loose search...
+[ArtService] Loose search failed. Trying Album-only search for: "LALISA"
+[ArtService] No results found on Deezer.

@@ -18,6 +18,35 @@ class LibraryService {
     }
 
     /**
+     * Get files recursively for a specific folder
+     */
+    getFilesRecursive(folderId) {
+        return new Promise((resolve, reject) => {
+            // Recursive CTE to find all descendant folders
+            const sql = `
+                WITH RECURSIVE descendants(id) AS (
+                    SELECT id FROM files WHERE parent = ? AND mimeType = 'application/vnd.google-apps.folder' AND is_trashed = 0
+                    UNION ALL
+                    SELECT f.id FROM files f
+                    JOIN descendants d ON f.parent = d.id
+                    WHERE f.mimeType = 'application/vnd.google-apps.folder' AND f.is_trashed = 0
+                )
+                SELECT * FROM files 
+                WHERE (parent = ? OR parent IN descendants) 
+                AND is_trashed = 0
+            `;
+
+            // Note: We need to select files whose parent is either the target folder OR one of its descendants.
+            // The CTE above only collects folder IDs to keep it efficient, then we select files belonging to them.
+
+            db.all(sql, [folderId, folderId], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    }
+
+    /**
      * Get a single file by ID
      */
     getFile(id) {

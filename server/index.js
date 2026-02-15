@@ -164,14 +164,22 @@ app.get('/api/files', async (req, res) => {
 // API: Recursive File Fetch (Now Instant from DB)
 app.get('/api/files/recursive', async (req, res) => {
     try {
-        console.log('[API] Fetching all files from Local DB');
-        const files = await LocalLibraryService.getAllFiles();
+        const folderId = req.query.folderId;
+        let files;
+
+        if (folderId) {
+            console.log(`[API] Fetching recursive files for folder: ${folderId}`);
+            files = await LocalLibraryService.getFilesRecursive(folderId);
+        } else {
+            console.log('[API] Fetching all files from Local DB');
+            files = await LocalLibraryService.getAllFiles();
+        }
 
         console.log(`[API] Returning ${files.length} files from DB`);
         res.json({ files: files });
 
-        // Trigger background sync if empty
-        if (files.length === 0) {
+        // Trigger background sync if empty AND doing full fetch
+        if (!folderId && files.length === 0) {
             console.log('[API] Library empty, triggering bootstrap sync...');
             SyncService.startSync().catch(err => console.error(err));
         }
@@ -311,12 +319,30 @@ app.post('/api/metadata/rescan', async (req, res) => {
         // Fetch all files recursively
         const files = await driveService.getFilesRecursive(rootFolderId);
 
+        // CRITICAL FIX: Update SQLite DB Structure (Parent/Child links)
+        // The metadata service only updates JSON cache, but we need DB for recursive queries.
+        console.log('[Metadata] Rescan: Syncing file structure to DB...');
+        await LocalLibraryService.beginTransaction();
+        try {
+            for (const file of files) {
+                // Use SyncService mapper to handle parent logic consistently
+                const dbFile = SyncService.mapDriveFileToDB(file);
+                await LocalLibraryService.upsertFile(dbFile);
+            }
+            await LocalLibraryService.commit();
+            console.log('[Metadata] DB Structure updated successfully.');
+        } catch (dbErr) {
+            await LocalLibraryService.rollback();
+            console.error('[Metadata] Failed to update DB structure:', dbErr);
+            // Continue to enrichment even if DB update fails (though it shouldn't)
+        }
+
         // Trigger enrichment with FORCE=false to only scan new/unscanned files
         metadataService.enrichFiles(files, false).catch(err =>
             console.error('[Background] Rescan enrichment error:', err.message)
         );
 
-        res.json({ success: true, message: 'Scanning new files...', count: files.length });
+        res.json({ success: true, message: 'Structure synced & Scanning new files...', count: files.length });
 
     } catch (error) {
         console.error('[Metadata] Rescan error:', error.message);

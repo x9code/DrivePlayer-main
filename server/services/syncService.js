@@ -279,7 +279,7 @@ class SyncService {
         return {
             id: file.id,
             name: name,
-            parent: (file.parents && file.parents[0]) ? file.parents[0] : null,
+            parent: file.parent || ((file.parents && file.parents[0]) ? file.parents[0] : null),
             mimeType: file.mimeType,
             size: parseInt(file.size || 0),
             createdTime: file.createdTime,
