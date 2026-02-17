@@ -685,6 +685,21 @@ function App() {
     // Check URL params on load
     const params = new URLSearchParams(window.location.search);
     const folderId = params.get('folder');
+
+    // [NEW] Check for autolock parameter (autolock=true/false or 1/0)
+    const autolockParam = params.get('autolock');
+    if (autolockParam !== null) {
+      const shouldLock = autolockParam === 'true' || autolockParam === '1';
+      setAutoLockEnabled(shouldLock);
+      localStorage.setItem('driveplayer_autolock', shouldLock);
+
+      // If disabling lock, also ensure we unlock immediately
+      if (!shouldLock) {
+        setIsAuthenticated(true);
+        updateLastActive();
+      }
+    }
+
     if (folderId) {
       setCurrentFolderId(folderId);
       fetchFiles(folderId);
