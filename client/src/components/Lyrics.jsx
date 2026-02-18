@@ -260,11 +260,71 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
                     const isPast = index < activeIndex;
                     const isNear = index === activeIndex - 1 || index === activeIndex + 1;
 
+                    // Word-Level Rendering Logic
+                    let wordElements = null;
+                    if (isActive) {
+                        const words = line.text.split(/(\s+)/); // Keep spaces as tokens
+                        let charCount = 0;
+                        const totalChars = line.text.length;
+
+                        wordElements = words.map((word, wIndex) => {
+                            const startChar = charCount;
+                            const endChar = charCount + word.length;
+                            charCount += word.length;
+
+                            // Calculate progress for this specific word
+                            // lineProgress (0-1) maps to character position
+                            const currentPos = lineProgress * totalChars;
+
+                            let wordStyle = {};
+
+                            // Unified Rendering Strategy: Always use background-clip to prevent layout thrashing
+                            const commonStyle = {
+                                WebkitBackgroundClip: 'text',
+                                backgroundClip: 'text',
+                                color: 'transparent',
+                                WebkitTextFillColor: 'transparent',
+                                display: 'inline-block',
+                            };
+
+                            if (currentPos >= endChar) {
+                                // Word fully sung -> Full White
+                                wordStyle = {
+                                    ...commonStyle,
+                                    backgroundImage: 'linear-gradient(to right, white, white)',
+                                    opacity: 1
+                                };
+                            } else if (currentPos <= startChar) {
+                                // Word not yet sung -> Dim White
+                                wordStyle = {
+                                    ...commonStyle,
+                                    backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.3), rgba(255,255,255,0.3))',
+                                    opacity: 1
+                                };
+                            } else {
+                                // Currently singing -> Dynamic Gradient
+                                const wordProgress = (currentPos - startChar) / word.length;
+                                const fill = Math.min(100, Math.max(0, wordProgress * 100));
+                                wordStyle = {
+                                    ...commonStyle,
+                                    backgroundImage: `linear-gradient(to right, #ffffff ${fill}%, rgba(255,255,255,0.3) ${fill}%)`,
+                                    opacity: 1
+                                };
+                            }
+
+                            return (
+                                <span key={wIndex} style={wordStyle}>
+                                    {word === ' ' ? '\u00A0' : word}
+                                </span>
+                            );
+                        });
+                    }
+
                     return (
                         <p
                             key={index}
                             ref={el => linesRef.current[index] = el}
-                            className={`cursor-pointer origin-center
+                            className={`cursor-pointer origin-center inline-block w-auto max-w-full
                                 ${isIdle ? 'text-4xl md:text-6xl font-extrabold tracking-tight leading-tight' : 'text-2xl md:text-3xl font-bold tracking-tight'}
                                 ${isActive
                                     ? `scale-100 ${isIdle ? 'tracking-normal scale-105' : ''}`
@@ -284,11 +344,6 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
                             style={{
                                 transition: 'transform 0.7s cubic-bezier(0.2,0.8,0.2,1), filter 0.7s cubic-bezier(0.2,0.8,0.2,1), opacity 0.7s cubic-bezier(0.2,0.8,0.2,1)',
                                 ...(isActive ? {
-                                    background: `linear-gradient(to right, #ffffff ${fillPercent}%, rgba(255,255,255,0.3) ${fillPercent}%)`,
-                                    WebkitBackgroundClip: 'text',
-                                    backgroundClip: 'text',
-                                    color: 'transparent',
-                                    WebkitTextFillColor: 'transparent',
                                     opacity: 1,
                                 } : {})
                             }}
@@ -299,7 +354,7 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
                                 }
                             }}
                         >
-                            {line.text}
+                            {isActive ? wordElements : line.text}
                         </p>
                     );
                 })}

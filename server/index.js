@@ -424,17 +424,29 @@ async function fetchArtistImage(name) {
     // Source 1: Deezer (free, no auth)
     try {
         const deezerRes = await axios.get('https://api.deezer.com/search/artist', {
-            params: { q: name, limit: 3 },
+            params: { q: name, limit: 5 }, // Fetch more to find best match
             timeout: 5000
         });
-        if (deezerRes.data?.data?.length > 0) {
-            // Find best match (case-insensitive name match preferred)
-            const exact = deezerRes.data.data.find(a => a.name.toLowerCase() === name.toLowerCase());
-            const artist = exact || deezerRes.data.data[0];
-            const url = artist.picture_xl || artist.picture_big || artist.picture_medium;
-            // Filter out Deezer's default placeholder
-            if (url && !url.includes('/artist//') && !url.includes('default_artist')) {
-                return url;
+
+        let candidates = deezerRes.data?.data || [];
+
+        if (candidates.length > 0) {
+            // Filter: Name must reasonably match (contains the search term)
+            candidates = candidates.filter(c => c.name.toLowerCase().includes(name.toLowerCase()));
+
+            // Sort by popularity (nb_fan) descending
+            candidates.sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0));
+
+            // Prefer exact match if available in top candidates
+            const exact = candidates.find(a => a.name.toLowerCase() === name.toLowerCase());
+            const artist = exact || candidates[0]; // Otherwise take most popular
+
+            if (artist) {
+                const url = artist.picture_xl || artist.picture_big || artist.picture_medium;
+                // Filter out Deezer's default placeholder
+                if (url && !url.includes('/artist//') && !url.includes('default_artist')) {
+                    return url;
+                }
             }
         }
     } catch (e) {
@@ -447,18 +459,24 @@ async function fetchArtistImage(name) {
             params: { term: name, entity: 'musicArtist', limit: 1 },
             timeout: 5000
         });
+
         if (itunesRes.data?.results?.length > 0) {
-            // iTunes doesn't return artist images directly, but let's search for albums
-            const albumRes = await axios.get('https://itunes.apple.com/search', {
-                params: { term: name, entity: 'album', limit: 1 },
+            const artist = itunesRes.data.results[0];
+            const artistId = artist.artistId;
+
+            // Lookup albums by this specific artist ID to ensure we get *their* albums
+            const albumRes = await axios.get('https://itunes.apple.com/lookup', {
+                params: { id: artistId, entity: 'album', limit: 1 },
                 timeout: 5000
             });
-            if (albumRes.data?.results?.length > 0) {
-                // Get high-res album artwork (replace 100x100 with 600x600)
-                const artworkUrl = albumRes.data.results[0].artworkUrl100;
-                if (artworkUrl) {
-                    return artworkUrl.replace('100x100', '600x600');
-                }
+
+            // The first result in lookup is the artist, subsequent are albums
+            const results = albumRes.data?.results || [];
+            // Find the first album (wrapperType = collection) with artwork
+            const album = results.find(r => r.wrapperType === 'collection' && r.artworkUrl100);
+
+            if (album) {
+                return album.artworkUrl100.replace('100x100', '600x600');
             }
         }
     } catch (e) {
