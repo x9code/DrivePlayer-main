@@ -456,6 +456,7 @@ function AppContent() {
 
   // Sorting Logic
   const sortedFiles = useMemo(() => {
+    if (!files || !Array.isArray(files)) return [];
     // 1. Separate folders and files
     const folders = files.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
     let songs = files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');

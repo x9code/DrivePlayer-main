@@ -7,6 +7,7 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
     const [lyrics, setLyrics] = useState([]);
     const [plainLyrics, setPlainLyrics] = useState(null);
     const [activeIndex, setActiveIndex] = useState(-1);
+    const [lineProgress, setLineProgress] = useState(0); // 0-1 progress through active line
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const containerRef = useRef(null);
@@ -23,6 +24,7 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
             setLyrics([]);
             setPlainLyrics(null);
             setActiveIndex(-1);
+            setLineProgress(0);
 
             try {
                 // 1. Try Primary Fetch (GET via proxy)
@@ -119,7 +121,7 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
                 const minutes = parseInt(match[1], 10);
                 const seconds = parseInt(match[2], 10);
                 const milliseconds = parseInt(match[3], 10);
-                const time = minutes * 60 + seconds + milliseconds / 100;
+                const time = minutes * 60 + seconds + milliseconds / (match[3].length === 3 ? 1000 : 100);
                 const text = line.replace(timeRegex, '').trim();
 
                 if (text) {
@@ -134,6 +136,7 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
     const activeIndexRef = useRef(activeIndex);
     useEffect(() => { activeIndexRef.current = activeIndex; }, [activeIndex]);
 
+    // Main sync loop — tracks active line AND per-line progress
     useEffect(() => {
         if (!lyrics?.length || !audioRef.current || !isExpanded) return;
         let animationFrameId;
@@ -153,11 +156,31 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
             if (newIndex !== activeIndexRef.current) {
                 setActiveIndex(newIndex);
             }
+
+            // Calculate per-line progress (0-1)
+            if (newIndex >= 0) {
+                const lineStart = lyrics[newIndex].time;
+                const lineEnd = newIndex < lyrics.length - 1
+                    ? lyrics[newIndex + 1].time
+                    : (duration || lineStart + 5); // Fallback: 5s for last line
+
+                const lineDuration = lineEnd - lineStart;
+                if (lineDuration > 0) {
+                    const elapsed = currentTime - lineStart;
+                    const progress = Math.min(1, Math.max(0, elapsed / lineDuration));
+                    setLineProgress(progress);
+                } else {
+                    setLineProgress(1);
+                }
+            } else {
+                setLineProgress(0);
+            }
+
             animationFrameId = requestAnimationFrame(loop);
         }
         loop();
         return () => cancelAnimationFrame(animationFrameId);
-    }, [lyrics, isExpanded]);
+    }, [lyrics, isExpanded, duration]);
 
 
     // Calculate Scroll Position
@@ -212,6 +235,9 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
 
     if (!lyrics?.length) return null;
 
+    // Calculate fill percentage for the active line (for Apple Music effect)
+    const fillPercent = lineProgress * 100;
+
     return (
         <div
             ref={containerRef}
@@ -231,23 +257,41 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded, isIdle }) => {
             >
                 {lyrics.map((line, index) => {
                     const isActive = index === activeIndex;
+                    const isPast = index < activeIndex;
                     const isNear = index === activeIndex - 1 || index === activeIndex + 1;
 
                     return (
                         <p
                             key={index}
                             ref={el => linesRef.current[index] = el}
-                            className={`transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer origin-center
+                            className={`cursor-pointer origin-center
                                 ${isIdle ? 'text-4xl md:text-6xl font-extrabold tracking-tight leading-tight' : 'text-2xl md:text-3xl font-bold tracking-tight'}
                                 ${isActive
-                                    ? `text-white scale-100 blur-none opacity-100 drop-shadow-2xl ${isIdle ? 'tracking-normal scale-105' : ''}`
-                                    : isIdle
-                                        ? 'text-zinc-500 scale-[0.9] blur-[2px] opacity-20'
-                                        : isNear
-                                            ? 'text-zinc-300 scale-[0.85] blur-[0.5px] opacity-80'
-                                            : 'text-zinc-600 scale-[0.6] blur-[2px] opacity-40'
+                                    ? `scale-100 ${isIdle ? 'tracking-normal scale-105' : ''}`
+                                    : isPast
+                                        ? isIdle
+                                            ? 'text-zinc-500 scale-[0.9] blur-[2px] opacity-20'
+                                            : isNear
+                                                ? 'text-white/60 scale-[0.85] blur-[0.5px] opacity-80'
+                                                : 'text-zinc-600 scale-[0.6] blur-[2px] opacity-40'
+                                        : isIdle
+                                            ? 'text-zinc-500 scale-[0.9] blur-[2px] opacity-20'
+                                            : isNear
+                                                ? 'text-zinc-300 scale-[0.85] blur-[0.5px] opacity-80'
+                                                : 'text-zinc-600 scale-[0.6] blur-[2px] opacity-40'
                                 }
                             `}
+                            style={{
+                                transition: 'transform 0.7s cubic-bezier(0.2,0.8,0.2,1), filter 0.7s cubic-bezier(0.2,0.8,0.2,1), opacity 0.7s cubic-bezier(0.2,0.8,0.2,1)',
+                                ...(isActive ? {
+                                    background: `linear-gradient(to right, #ffffff ${fillPercent}%, rgba(255,255,255,0.3) ${fillPercent}%)`,
+                                    WebkitBackgroundClip: 'text',
+                                    backgroundClip: 'text',
+                                    color: 'transparent',
+                                    WebkitTextFillColor: 'transparent',
+                                    opacity: 1,
+                                } : {})
+                            }}
                             onClick={() => {
                                 if (audioRef.current) {
                                     audioRef.current.currentTime = line.time;

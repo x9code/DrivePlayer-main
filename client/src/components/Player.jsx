@@ -402,7 +402,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     {/* Main Content Container with Staggered Entry */}
                     <div className={`flex flex-col items-center w-full ${isIdle && showLyrics ? 'max-w-6xl h-full justify-center' : 'max-w-md'} gap-8 z-10 transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                         {/* Artwork + Info Card Container */}
-                        <div className="relative flex items-center justify-center">
+                        <div className={`relative flex items-center justify-center ${isIdle && showLyrics ? 'w-full h-full' : ''}`}>
                             {/* Info Card (Left of Album Art) */}
                             <div
                                 className={`absolute right-full mr-4 top-0 bottom-0 w-72 z-30 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showInfo ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-8 pointer-events-none'}`}
@@ -475,12 +475,12 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             </div>
 
                             {/* 3D Flip Container */}
-                            <div className={`relative group perspective-1000 transition-all duration-1000 ${isIdle && showLyrics ? 'w-full h-full max-h-[85vh]' : 'w-72 h-72 md:w-96 md:h-96'}`}>
+                            <div className={`relative group transition-all duration-1000 ${isIdle && showLyrics ? 'w-full h-full' : 'perspective-1000 w-72 h-72 md:w-96 md:h-96'}`}>
                                 <div
-                                    className={`relative w-full h-full transition-transform duration-700 transform-style-3d ${showLyrics ? 'rotate-y-180' : ''}`}
+                                    className={`relative w-full h-full transition-transform duration-700 ${isIdle && showLyrics ? '' : 'transform-style-3d'} ${showLyrics && !(isIdle && showLyrics) ? 'rotate-y-180' : ''}`}
                                 >
                                     {/* Front Face: Artwork */}
-                                    <div className="absolute inset-0 w-full h-full backface-hidden rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate">
+                                    <div className={`absolute inset-0 w-full h-full backface-hidden rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate ${isIdle && showLyrics ? 'hidden' : ''}`}>
                                         {/* Like Button Overlay (Top Right) */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
@@ -522,7 +522,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                                     {/* Back Face: Lyrics */}
                                     <div
-                                        className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-3xl overflow-hidden bg-transparent cursor-default"
+                                        className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden bg-transparent cursor-default ${isIdle && showLyrics ? '' : 'backface-hidden rotate-y-180'}`}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setShowLyrics(false);
