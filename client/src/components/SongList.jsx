@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline, IoAddCircleOutline, IoCloudDownloadOutline, IoEllipsisVertical } from 'react-icons/io5';
+import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline, IoAddCircleOutline, IoCloudDownloadOutline, IoEllipsisVertical, IoFolderOpen } from 'react-icons/io5';
 import axios from 'axios';
 
 
@@ -139,6 +139,107 @@ const Equalizer = () => (
         <div className="w-[3px] bg-primary rounded-t-full" style={{ animation: 'equalize 0.8s infinite', animationDelay: '0.4s' }}></div>
     </div>
 );
+
+const FolderRow = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, thumbnailUrl, defaultCover, handleCoverUpload }) => {
+    const [imgSrc, setImgSrc] = useState(customCoverUrl);
+    const [showMenu, setShowMenu] = useState(false);
+
+    React.useEffect(() => {
+        setImgSrc(customCoverUrl);
+    }, [customCoverUrl]);
+
+    return (
+        <div
+            onClick={() => onFolderClick(folder.id)}
+            className="group grid grid-cols-[48px_1fr_100px] items-center gap-4 px-4 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent hover:bg-white/5 hover:border-white/5"
+        >
+            {/* Icon/Cover */}
+            <div className="relative w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center bg-zinc-800/50 shadow-md">
+                <img
+                    src={imgSrc}
+                    onError={() => {
+                        if (imgSrc === customCoverUrl && thumbnailUrl) setImgSrc(thumbnailUrl);
+                        else if (imgSrc !== defaultCover) setImgSrc(defaultCover);
+                    }}
+                    alt={folder.name}
+                    className={`w-full h-full object-cover transition-opacity ${uploading === folder.id ? 'opacity-50' : ''}`}
+                />
+                {/* Play Button Overlay */}
+                <div
+                    onClick={(e) => { e.stopPropagation(); onFolderPlay(folder.id); }}
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                    <IoPlay size={16} className="text-white" />
+                </div>
+            </div>
+
+            {/* Name */}
+            <div className="flex flex-col min-w-0">
+                <h4 className="font-medium text-[15px] text-gray-200 group-hover:text-white truncate" title={folder.name}>
+                    {folder.name}
+                </h4>
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <IoFolderOpen size={12} />
+                    <span>Folder</span>
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2 relative">
+                {/* 3-Dot Menu */}
+                <div className="relative shrink-0">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMenu(!showMenu);
+                        }}
+                        className="text-zinc-500 hover:text-white transition-colors p-1.5 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        title="More Options"
+                    >
+                        <IoEllipsisVertical size={18} />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {showMenu && (
+                        <>
+                            <div className="fixed inset-0 z-[60]" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }}></div>
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden p-1 z-[70] shadow-xl animate-in fade-in zoom-in-95 duration-100">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.open(`${API_BASE}/api/download/folder/${folder.id}`, '_blank');
+                                        setShowMenu(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-zinc-300 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-colors"
+                                >
+                                    <IoCloudDownloadOutline size={16} className="text-primary" />
+                                    <span>Download ZIP</span>
+                                </button>
+
+                                <label
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-zinc-300 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-colors cursor-pointer"
+                                >
+                                    <IoPencil size={16} className="text-zinc-400" />
+                                    <span>Change Cover</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            handleCoverUpload(folder.id, e.target.files[0]);
+                                            setShowMenu(false);
+                                        }}
+                                    />
+                                </label>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+});
 
 const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLiked, toggleLike, onAddPlaylist, playCount }) => {
     return (
@@ -297,14 +398,14 @@ const PlaylistHeader = ({ playlist, onRename, onCoverUpload, uploading, refreshT
                 )}
 
                 <div className="flex items-center gap-2 text-sm text-zinc-400 font-medium">
-                    <span>{playlist.songs.length} songs</span>
+                    <span>{playlist.songs?.length || 0} songs</span>
                 </div>
             </div>
         </div>
     );
 };
 
-const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loading, cleanTitle, likedSongs = [], toggleLike, onAddPlaylist, activePlaylist, onRenamePlaylist, playCounts = {} }) => {
+const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loading, cleanTitle, likedSongs = [], toggleLike, onAddPlaylist, activePlaylist, onRenamePlaylist, playCounts = {}, viewMode = 'grid' }) => {
 
     const [uploading, setUploading] = useState(null); // folderId or playlistId being uploaded to
     const [cacheBuster, setCacheBuster] = useState(Date.now()); // Force image refresh
@@ -360,7 +461,10 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
             {folders.length > 0 && !activePlaylist && (
                 <div className="mb-14">
                     <h3 className="text-xl font-bold mb-6 text-white/90 px-1">Folders</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                    <div className={viewMode === 'grid'
+                        ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6"
+                        : "flex flex-col gap-1"
+                    }>
                         {folders.map(folder => {
                             // Deterministic cover selection (Fallback)
                             const hash = folder.name.split("").reduce((a, b) => {
@@ -372,8 +476,20 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                             const customCoverUrl = `${API_BASE}/api/folder/cover/${folder.id}?t=${cacheBuster}`;
                             const thumbnailUrl = folder.firstSongId ? `${API_BASE}/api/thumbnail/${folder.firstSongId}` : null;
 
-                            return (
+                            return viewMode === 'grid' ? (
                                 <FolderCard
+                                    key={folder.id}
+                                    folder={folder}
+                                    onFolderClick={onFolderClick}
+                                    onFolderPlay={onFolderPlay}
+                                    uploading={uploading}
+                                    customCoverUrl={customCoverUrl}
+                                    thumbnailUrl={thumbnailUrl}
+                                    defaultCover={defaultCover}
+                                    handleCoverUpload={handleCoverUpload}
+                                />
+                            ) : (
+                                <FolderRow
                                     key={folder.id}
                                     folder={folder}
                                     onFolderClick={onFolderClick}

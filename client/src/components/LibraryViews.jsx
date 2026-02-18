@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { IoDiscOutline, IoPersonOutline, IoMusicalNote, IoPlay, IoEllipsisVertical, IoCloudDownloadOutline } from 'react-icons/io5';
+import { IoDiscOutline, IoPersonOutline, IoMusicalNote, IoPlay, IoEllipsisVertical, IoCloudDownloadOutline, IoAlbumsOutline } from 'react-icons/io5';
 
 const AlbumCard = React.memo(({ album, onAlbumClick }) => {
     const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -83,7 +83,84 @@ const AlbumCard = React.memo(({ album, onAlbumClick }) => {
     );
 });
 
-export const AlbumGrid = ({ files, onAlbumClick }) => {
+const AlbumRow = React.memo(({ album, onAlbumClick }) => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const [imageError, setImageError] = useState(false);
+    const [showMenu, setShowMenu] = useState(false);
+
+    return (
+        <div
+            onClick={() => onAlbumClick(album.name)}
+            className="group grid grid-cols-[48px_1fr_100px] items-center gap-4 px-4 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent hover:bg-white/5 hover:border-white/5"
+        >
+            {/* Icon/Cover */}
+            <div className="relative w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center bg-zinc-800/50 shadow-md">
+                {album.firstSongId && !imageError ? (
+                    <img
+                        src={`${API_BASE}/api/thumbnail/${album.firstSongId}`}
+                        alt={album.name}
+                        className="w-full h-full object-cover"
+                        onError={() => setImageError(true)}
+                    />
+                ) : (
+                    <div className="w-full h-full bg-zinc-700 flex items-center justify-center">
+                        <IoDiscOutline className="text-xl text-white/20" />
+                    </div>
+                )}
+            </div>
+
+            {/* Name */}
+            <div className="flex flex-col min-w-0">
+                <h4 className="font-medium text-[15px] text-gray-200 group-hover:text-white truncate" title={album.name}>
+                    {album.name}
+                </h4>
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <IoAlbumsOutline size={12} />
+                    <span>{album.count} songs</span>
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2 relative">
+                {/* 3-Dot Menu */}
+                <div className="relative shrink-0">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMenu(!showMenu);
+                        }}
+                        className="text-zinc-500 hover:text-white transition-colors p-1.5 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        title="More Options"
+                    >
+                        <IoEllipsisVertical size={18} />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {showMenu && (
+                        <>
+                            <div className="fixed inset-0 z-[60]" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }}></div>
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden p-1 z-[70] shadow-xl animate-in fade-in zoom-in-95 duration-100">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.open(`${API_BASE}/api/download/album?name=${encodeURIComponent(album.name)}`, '_blank');
+                                        setShowMenu(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-zinc-300 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-colors font-medium"
+                                >
+                                    <IoCloudDownloadOutline size={16} className="text-primary" />
+                                    <span>Download ZIP</span>
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+});
+
+export const AlbumGrid = ({ files, onAlbumClick, viewMode = 'grid' }) => {
     const albums = useMemo(() => {
         const map = {};
         files.forEach(f => {
@@ -109,9 +186,16 @@ export const AlbumGrid = ({ files, onAlbumClick }) => {
     }, [files]);
 
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-4">
+        <div className={viewMode === 'grid'
+            ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-4"
+            : "flex flex-col gap-1 p-4"
+        }>
             {albums.map(album => (
-                <AlbumCard key={album.name} album={album} onAlbumClick={onAlbumClick} />
+                viewMode === 'grid' ? (
+                    <AlbumCard key={album.name} album={album} onAlbumClick={onAlbumClick} />
+                ) : (
+                    <AlbumRow key={album.name} album={album} onAlbumClick={onAlbumClick} />
+                )
             ))}
         </div>
     );

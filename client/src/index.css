@@ -45,6 +45,14 @@
   @apply bg-white/5 hover:bg-white/15 active:bg-white/20 backdrop-blur-md transition-all duration-200 border border-white/5;
 }
 
+/* Glass Panel (Dropdowns) - High Opacity for readability */
+.glass-panel {
+  @apply bg-zinc-900/95 border border-white/10;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
 @media (max-width: 768px) {
 
   .glass-panel,

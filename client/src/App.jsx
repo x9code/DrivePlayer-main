@@ -3,7 +3,7 @@ import { Analytics } from "@vercel/analytics/react"
 import axios from 'axios'
 import Player from './components/Player'
 import SongList from './components/SongList'
-import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoLockClosedOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline } from 'react-icons/io5'
+import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoLockClosedOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline } from 'react-icons/io5'
 import LockScreen from './components/LockScreen'
 import SettingsModal from './components/SettingsModal'
 import AddToPlaylistModal from './components/AddToPlaylistModal'
@@ -344,7 +344,7 @@ function AppContent() {
   const [showSettings, setShowSettings] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [songToAdd, setSongToAdd] = useState(null);
-  const [showSortMenu, setShowSortMenu] = useState(false);
+  // showSortMenu moved to Sorting State section
 
   // Helper to update last active time
   const updateLastActive = useCallback(() => {
@@ -440,6 +440,15 @@ function AppContent() {
   // Sorting State
   const [sortOption, setSortOption] = useState('name'); // 'name', 'date', 'size'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc', 'desc'
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [showViewMenu, setShowViewMenu] = useState(false);
+
+  // View Mode State (Grid/List)
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('driveplayer_view_mode') || 'grid');
+
+  useEffect(() => {
+    localStorage.setItem('driveplayer_view_mode', viewMode);
+  }, [viewMode]);
 
   const searchTimeout = useRef(null);
   const fileCache = useRef({}); // Cache for folder contents
@@ -1207,6 +1216,49 @@ function AppContent() {
             </div>
           )}
 
+          {/* [NEW] View Toggle (Grid/List) - Only show if current view has folders */}
+          {files.some(f => f.mimeType === 'application/vnd.google-apps.folder') && (
+            <div className="relative">
+              <button
+                onClick={() => setShowViewMenu(!showViewMenu)}
+                className="glass-button w-10 h-10 sm:w-auto rounded-full sm:px-4 flex items-center justify-center gap-2 text-zinc-300 hover:text-white hover:scale-105"
+                title="View"
+              >
+                {viewMode === 'grid' ? <IoGridOutline size={18} /> : <IoListOutline size={18} />}
+                <span className="hidden sm:inline text-sm font-medium">{viewMode === 'grid' ? 'Grid' : 'List'}</span>
+              </button>
+
+              {/* View Dropdown */}
+              {showViewMenu && (
+                <div className="absolute right-0 top-full mt-2 w-40 glass-panel rounded-2xl overflow-hidden p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-white/10">
+                  <div className="px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">View Mode</div>
+                  {[
+                    { id: 'grid', label: 'Grid', icon: IoGridOutline },
+                    { id: 'list', label: 'List', icon: IoListOutline }
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        setViewMode(opt.id);
+                        setShowViewMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-3 transition-colors
+                                  ${viewMode === opt.id ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}
+                              `}
+                    >
+                      <opt.icon size={16} />
+                      <span>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Backdrop */}
+              {showViewMenu && (
+                <div className="fixed inset-0 z-40" onClick={() => setShowViewMenu(false)}></div>
+              )}
+            </div>
+          )}
+
           {/* Shuffle Button (Compact) */}
           <button
             onClick={handleShufflePlay}
@@ -1286,6 +1338,7 @@ function AppContent() {
           <AlbumGrid
             files={files} // Use raw files for grid grouping
             onAlbumClick={(name) => handleFolderClick('lib:album:' + encodeURIComponent(name))}
+            viewMode={viewMode}
           />
         ) : currentFolderId === 'lib:artists' ? (
           <ArtistGrid
@@ -1307,6 +1360,7 @@ function AppContent() {
             onAddPlaylist={(song) => setSongToAdd(song)}
             activePlaylist={playlists.find(p => p.id === currentFolderId)}
             onRenamePlaylist={handleRenamePlaylist}
+            viewMode={viewMode}
           />
         )}
       </main>
