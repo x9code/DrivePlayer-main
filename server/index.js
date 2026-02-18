@@ -13,6 +13,11 @@ const DriveService = require('./services/driveService');
 const MetadataService = require('./services/metadataService');
 const LocalLibraryService = require('./services/libraryService'); // Rename to avoid conflict if any
 const SyncService = require('./services/syncService');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+// Secret for JWT (In production, use .env)
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-this';
 
 dotenv.config();
 
@@ -25,6 +30,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Range']
 }));
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // [NEW] Serve Static Files
 
 // Google Drive Auth Setup
 const SCOPES = ['https://www.googleapis.com/auth/drive.readonly'];
@@ -72,7 +78,8 @@ async function initializeServices() {
         driveService = new DriveService(driveClient);
         cacheService = new CacheService(CACHE_DIR);
         await cacheService.init();
-        metadataService = new MetadataService(driveService, cacheService, CACHE_DIR);
+        // Inject LocalLibraryService for DB updates
+        metadataService = new MetadataService(driveService, cacheService, CACHE_DIR, LocalLibraryService);
 
         // Initialize SyncService with DriveService instance
         SyncService.init(driveService);
@@ -87,6 +94,183 @@ async function initializeServices() {
 }
 
 initializeServices();
+
+// --- DATABASE & AUTH SETUP ---
+
+// Ensure Users Table Exists
+const db = LocalLibraryService.db; // Access the existing SQLite instance
+if (db) {
+    db.serialize(() => {
+        db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, (err) => {
+            if (err) console.error("Error creating users table:", err);
+            else {
+                console.log("Users table ready");
+                // [NEW] Attempt to add avatar_path column if it doesn't exist
+                db.run("ALTER TABLE users ADD COLUMN avatar_path TEXT", (err) => {
+                    if (err && !err.message.includes('duplicate column')) {
+                        console.error("Column add error (might exist):", err.message);
+                    } else {
+                        console.log("Avatar column ready");
+                    }
+
+                });
+                // [NEW] Add Username Column
+                db.run("ALTER TABLE users ADD COLUMN username TEXT", (err) => {
+                    if (err && !err.message.includes('duplicate column')) {
+                        console.error("Column add error (might exist):", err.message);
+                    } else {
+                        console.log("Username column ready");
+                    }
+                });
+            }
+        });
+    });
+}
+
+// Middleware: Authenticate Token
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) return res.sendStatus(401);
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403);
+        req.user = user;
+        next();
+    });
+};
+
+// --- AUTH ROUTES ---
+
+// Register
+app.post('/api/auth/register', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const stmt = db.prepare("INSERT INTO users (email, password) VALUES (?, ?)");
+        stmt.run(email, hashedPassword, function (err) {
+            if (err) {
+                if (err.message.includes('UNIQUE constraint failed')) {
+                    return res.status(409).json({ error: "Email already exists" });
+                }
+                return res.status(500).json({ error: err.message });
+            }
+
+            // Auto-login after register
+            const user = { id: this.lastID, email };
+            const token = jwt.sign(user, JWT_SECRET, { expiresIn: '30d' }); // Long session
+            res.status(201).json({ token, user });
+        });
+        stmt.finalize();
+    } catch (e) {
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// Login
+app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+
+    db.get("SELECT * FROM users WHERE email = ?", [email], async (err, user) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (!user) return res.status(400).json({ error: "User not found" });
+
+        try {
+            if (await bcrypt.compare(password, user.password)) {
+                const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+                res.json({ token, user: { id: user.id, email: user.email } });
+            } else {
+                res.status(401).json({ error: "Invalid credentials" });
+            }
+        } catch (e) {
+            res.status(500).json({ error: "Server error" });
+        }
+    });
+});
+
+// Get Current User (Verify Token)
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+    res.json(req.user);
+});
+
+// --- USER DATA ROUTES (Protected) ---
+
+// Favorites
+app.get('/api/favorites', authenticateToken, async (req, res) => {
+    try {
+        const favorites = await LocalLibraryService.getFavorites(req.user.id);
+        res.json(favorites);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/favorites/:fileId', authenticateToken, async (req, res) => {
+    try {
+        await LocalLibraryService.addFavorite(req.user.id, req.params.fileId);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/api/favorites/:fileId', authenticateToken, async (req, res) => {
+    try {
+        await LocalLibraryService.removeFavorite(req.user.id, req.params.fileId);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Playlists
+app.get('/api/playlists', authenticateToken, async (req, res) => {
+    try {
+        const playlists = await LocalLibraryService.getPlaylists(req.user.id);
+        res.json(playlists);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/playlists', authenticateToken, async (req, res) => {
+    try {
+        const { id, name } = req.body;
+        await LocalLibraryService.createPlaylist(req.user.id, id, name);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/api/playlists/:id', authenticateToken, async (req, res) => {
+    try {
+        await LocalLibraryService.deletePlaylist(req.user.id, req.params.id);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/playlists/:id/songs', authenticateToken, async (req, res) => {
+    try {
+        const { fileId } = req.body;
+        await LocalLibraryService.addToPlaylist(req.user.id, req.params.id, fileId);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 
 app.get('/', (req, res) => {
     res.send('DrivePlayer Server Running');
@@ -182,6 +366,12 @@ app.get('/api/files/recursive', async (req, res) => {
         if (!folderId && files.length === 0) {
             console.log('[API] Library empty, triggering bootstrap sync...');
             SyncService.startSync().catch(err => console.error(err));
+        } else if (files.length > 0 && metadataService) {
+            // [NEW] Trigger metadata enrichment in background
+            // This ensures that if we have files but no metadata (id3 tags), we fetch them now.
+            // We don't await this so the UI loads instantly.
+            console.log('[API] Triggering background metadata enrichment for list...');
+            metadataService.enrichFiles(files).catch(err => console.error('[API] Enrichment error:', err));
         }
     } catch (error) {
         console.error('[API] Error fetching files:', error);
@@ -410,6 +600,79 @@ app.get('/api/folder/cover/:folderId', (req, res) => {
         res.sendFile(coverPath);
     } else {
         res.status(404).send('No custom cover');
+    }
+});
+// ----------------------------
+
+// --- Avatar Upload ---
+const avatarStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, 'uploads', 'avatars');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, `avatar-${req.user.id}-${uniqueSuffix}${ext}`);
+    }
+});
+
+const uploadAvatar = multer({
+    storage: avatarStorage,
+    limits: { fileSize: 300 * 1024 } // 300KB Limit
+});
+
+// API: Upload Avatar
+app.post('/api/user/avatar', authenticateToken, uploadAvatar.single('image'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+
+    const avatarPath = `/uploads/avatars/${req.file.filename}`;
+
+    // Update DB
+    const stmt = db.prepare("UPDATE users SET avatar_path = ? WHERE id = ?");
+    stmt.run(avatarPath, req.user.id, function (err) {
+        if (err) return res.status(500).json({ error: "Database update failed" });
+        res.json({ success: true, avatarPath });
+    });
+    stmt.finalize();
+});
+
+// API: Update User Profile (Username)
+app.put('/api/user/profile', authenticateToken, (req, res) => {
+    const { username } = req.body;
+    if (!username || typeof username !== 'string' || username.trim().length === 0) {
+        return res.status(400).json({ error: "Invalid username" });
+    }
+
+    const trimmedUsername = username.trim();
+
+    // Check uniqueness (optional, but good practice)
+    db.get("SELECT id FROM users WHERE username = ? AND id != ?", [trimmedUsername, req.user.id], (err, row) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (row) return res.status(409).json({ error: "Username already taken" });
+
+        const stmt = db.prepare("UPDATE users SET username = ? WHERE id = ?");
+        stmt.run(trimmedUsername, req.user.id, function (err) {
+            if (err) return res.status(500).json({ error: "Update failed" });
+            res.json({ success: true, username: trimmedUsername });
+        });
+        stmt.finalize();
+    });
+});
+// ----------------------------
+
+// API: Get Metadata (Specific File)
+app.get('/api/metadata/:fileId', async (req, res) => {
+    const fileId = req.params.fileId;
+    if (!metadataService) return res.status(500).json({ error: 'Metadata service not initialized' });
+
+    try {
+        const metadata = await metadataService.getOrParseMetadata(fileId);
+        res.json(metadata);
+    } catch (error) {
+        console.error(`[API] Metadata fetch error for ${fileId}:`, error.message);
+        res.status(500).json({ error: 'Failed to fetch metadata' });
     }
 });
 // ----------------------------

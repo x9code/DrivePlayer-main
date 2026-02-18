@@ -1,7 +1,139 @@
 const db = require('../database/db');
 
 class LibraryService {
-    constructor() { }
+    constructor() {
+        this.db = db; // Expose DB for external use (Auth in index.js)
+        this.initUserTables();
+    }
+
+    initUserTables() {
+        if (db) {
+            db.serialize(() => {
+                // Favorites
+                db.run(`CREATE TABLE IF NOT EXISTS user_favorites (
+                    user_id INTEGER,
+                    file_id TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, file_id),
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )`);
+
+                // Play Counts
+                db.run(`CREATE TABLE IF NOT EXISTS user_play_counts (
+                    user_id INTEGER,
+                    file_id TEXT,
+                    count INTEGER DEFAULT 1,
+                    last_played DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, file_id),
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )`);
+
+                // Playlists
+                db.run(`CREATE TABLE IF NOT EXISTS playlists (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER,
+                    name TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )`);
+
+                // Playlist Songs
+                db.run(`CREATE TABLE IF NOT EXISTS playlist_songs (
+                    playlist_id TEXT,
+                    file_id TEXT,
+                    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (playlist_id, file_id),
+                    FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+                )`);
+            });
+        }
+    }
+
+    // --- USER SPECIFIC METHODS ---
+
+    async getFavorites(userId) {
+        return new Promise((resolve, reject) => {
+            const sql = `
+                SELECT f.* FROM files f
+                JOIN user_favorites uf ON f.id = uf.file_id
+                WHERE uf.user_id = ? AND f.is_trashed = 0
+            `;
+            db.all(sql, [userId], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    }
+
+    async addFavorite(userId, fileId) {
+        return new Promise((resolve, reject) => {
+            const sql = `INSERT OR IGNORE INTO user_favorites (user_id, file_id) VALUES (?, ?)`;
+            db.run(sql, [userId, fileId], function (err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+            });
+        });
+    }
+
+    async removeFavorite(userId, fileId) {
+        return new Promise((resolve, reject) => {
+            const sql = `DELETE FROM user_favorites WHERE user_id = ? AND file_id = ?`;
+            db.run(sql, [userId, fileId], function (err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+            });
+        });
+    }
+
+    async getPlaylists(userId) {
+        return new Promise((resolve, reject) => {
+            const sql = `SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at DESC`;
+            db.all(sql, [userId], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    }
+
+    async createPlaylist(userId, playlistId, name) {
+        return new Promise((resolve, reject) => {
+            const sql = `INSERT INTO playlists (id, user_id, name) VALUES (?, ?, ?)`;
+            db.run(sql, [playlistId, userId, name], function (err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+            });
+        });
+    }
+
+    async deletePlaylist(userId, playlistId) {
+        return new Promise((resolve, reject) => {
+            const sql = `DELETE FROM playlists WHERE id = ? AND user_id = ?`;
+            db.run(sql, [playlistId, userId], function (err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+            });
+        });
+    }
+
+    async addToPlaylist(userId, playlistId, fileId) {
+        // Verify ownership first
+        const playlist = await new Promise((resolve, reject) => {
+            db.get("SELECT id FROM playlists WHERE id = ? AND user_id = ?", [playlistId, userId], (err, row) => {
+                if (err) reject(err); else resolve(row);
+            });
+        });
+
+        if (!playlist) throw new Error("Playlist not found or access denied");
+
+        return new Promise((resolve, reject) => {
+            const sql = `INSERT OR IGNORE INTO playlist_songs (playlist_id, file_id) VALUES (?, ?)`;
+            db.run(sql, [playlistId, fileId], function (err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+            });
+        });
+    }
+
 
     /**
      * Get all active files (not trashed)
@@ -132,6 +264,19 @@ class LibraryService {
             // for now we trust internal calls.
             const sql = `UPDATE files SET ${field} = ? WHERE id = ?`;
             tx.run(sql, [value, id], function (err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+            });
+        });
+    }
+
+    /**
+     * Update metadata fields (title, artist, album, duration)
+     */
+    updateMetadata(id, meta, tx = db) {
+        return new Promise((resolve, reject) => {
+            const sql = `UPDATE files SET title = ?, artist = ?, album = ?, duration = ? WHERE id = ?`;
+            tx.run(sql, [meta.title, meta.artist, meta.album, meta.duration, id], function (err) {
                 if (err) reject(err);
                 else resolve(this.changes);
             });

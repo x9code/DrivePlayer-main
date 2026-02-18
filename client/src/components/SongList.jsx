@@ -14,6 +14,14 @@ const formatSize = (bytes) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
+// Format Duration Helper
+const formatDuration = (seconds) => {
+    if (!seconds) return '--:--';
+    const min = Math.floor(seconds / 60);
+    const sec = Math.floor(seconds % 60);
+    return `${min}:${sec < 10 ? '0' : ''}${sec}`;
+};
+
 const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, thumbnailUrl, defaultCover, handleCoverUpload }) => {
     const [imgSrc, setImgSrc] = useState(customCoverUrl);
     const [showMenu, setShowMenu] = useState(false);
@@ -156,32 +164,15 @@ const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLike
             <div className="flex items-center gap-4 min-w-0">
                 <div className="flex-1 min-w-0">
                     <h4 className={`truncate font-medium text-[15px] leading-snug ${isCurrent ? 'text-primary' : 'text-gray-200 group-hover:text-white'}`}>
-                        {(() => {
+                        {file.title || (() => {
                             const cleaned = cleanTitle ? cleanTitle(file.name) : file.name;
-                            const title = file.title || cleaned;
-
-                            // SAFE OVERRIDE: Check for Version Tags OR Missing Parentheses Info
-                            if (cleaned && title) {
-                                const lowerClean = cleaned.toLowerCase();
-                                const lowerTitle = title.toLowerCase();
-
-                                // 1. Version Tags
-                                const versionTags = ['remix', 'mix', 'dub', 'edit', 'sped up', 'spedup', 'slowed', 'reverb', 'instrumental', 'acoustic', 'demo', 'live', 'extended', 'radio', 'club', 'cover', 'version'];
-                                const hasVersionTag = versionTags.some(tag => lowerClean.includes(tag));
-                                const titleHasTag = versionTags.some(tag => lowerTitle.includes(tag));
-
-                                if (hasVersionTag && !titleHasTag) return cleaned;
-
-                                // 2. Parentheses/Brackets Content Mismatch
-                                // If filename has (Extra) or [Extra] that title completely lacks, use filename
-                                const cleanParens = cleaned.match(/[\(\[][^\)\]]+[\)\]]/g) || [];
-                                const titleParens = title.match(/[\(\[][^\)\]]+[\)\]]/g) || [];
-
-                                if (cleanParens.length > titleParens.length) return cleaned;
-                            }
-                            return title;
+                            // Basic cleaner fallback if no metadata
+                            return cleaned.replace(/^\d+\s*-\s*/, '').replace(/\.(mp3|m4a|flac|wav)$/i, '');
                         })()}
                     </h4>
+                    <p className="text-xs text-zinc-500 truncate group-hover:text-zinc-400">
+                        {file.artist || 'Unknown Artist'}
+                    </p>
                 </div>
             </div>
 
@@ -222,7 +213,7 @@ const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLike
                 {playCount !== undefined && (
                     <span className="text-[11px] text-zinc-400 font-bold min-w-[50px] text-right whitespace-nowrap">{playCount} plays</span>
                 )}
-                <span className="min-w-[60px] whitespace-nowrap text-right">{formatSize(file.size)}</span>
+                <span className="min-w-[60px] whitespace-nowrap text-right text-zinc-500">{formatSize(file.size)}</span>
             </div>
         </div>
     );
@@ -411,7 +402,7 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                     <div className="grid grid-cols-[32px_1fr_100px] md:grid-cols-[48px_1fr_140px] items-center gap-4 px-4 py-3 border-b border-white/5 text-zinc-500 text-xs font-semibold mb-2 uppercase tracking-widest">
                         <span className="text-center">#</span>
                         <span className="pl-1">Title</span>
-                        <span className="text-right flex items-center justify-end gap-1"><IoTimeOutline size={14} /> Size</span>
+                        <span className="text-right flex items-center justify-end gap-1">Size</span>
                     </div>
 
                     <div className="flex flex-col gap-1">

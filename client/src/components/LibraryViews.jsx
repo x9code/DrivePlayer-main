@@ -3,6 +3,7 @@ import { IoDiscOutline, IoPersonOutline, IoMusicalNote, IoPlay, IoEllipsisVertic
 
 const AlbumCard = React.memo(({ album, onAlbumClick }) => {
     const API_BASE = import.meta.env.VITE_API_URL || '';
+    const [imageError, setImageError] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
 
     return (
@@ -11,10 +12,17 @@ const AlbumCard = React.memo(({ album, onAlbumClick }) => {
             className="group bg-white/5 hover:bg-white/10 rounded-[2rem] p-3 transition-all duration-500 cursor-pointer flex flex-col gap-3 shadow-2xl hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)] hover:-translate-y-1 relative"
         >
             <div className="w-full aspect-square bg-zinc-800 rounded-2xl shadow-lg flex items-center justify-center overflow-hidden relative">
-                {album.firstSongId ? (
-                    <img src={`${API_BASE}/api/thumbnail/${album.firstSongId}`} alt={album.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                {album.firstSongId && !imageError ? (
+                    <img
+                        src={`${API_BASE}/api/thumbnail/${album.firstSongId}`}
+                        alt={album.name}
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        onError={() => setImageError(true)}
+                    />
                 ) : (
-                    <IoDiscOutline className="text-4xl text-zinc-600 group-hover:text-primary transition-colors" />
+                    <div className="w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-700 to-zinc-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-700">
+                        <IoDiscOutline className="text-5xl text-white/20 group-hover:text-white/40 transition-colors" />
+                    </div>
                 )}
 
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />

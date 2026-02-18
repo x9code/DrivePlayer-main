@@ -1,4 +1,4 @@
-import { IoHome, IoHeart, IoMusicalNote, IoAdd, IoTrashOutline, IoLibrary, IoDiscOutline, IoPeopleOutline, IoSyncOutline, IoLogoGoogle, IoStatsChart, IoChevronBack, IoChevronForward } from 'react-icons/io5';
+import { IoHome, IoHeart, IoMusicalNote, IoAdd, IoTrashOutline, IoLibrary, IoDiscOutline, IoPeopleOutline, IoSyncOutline, IoLogoGoogle, IoStatsChart, IoChevronBack, IoChevronForward, IoPersonCircleOutline } from 'react-icons/io5';
 import PlaylistCover from './PlaylistCover';
 import axios from 'axios';
 import { useEffect, useState, useRef } from 'react';
@@ -101,7 +101,8 @@ const Sidebar = ({
     onDeletePlaylist,
     isCollapsed,
     onToggle,
-    className = ""
+    className = "",
+    user // [NEW]
 }) => {
     const [isCreating, setIsCreating] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -271,6 +272,23 @@ const Sidebar = ({
                         isCollapsed={isCollapsed}
                     />
                 ))}
+            </div>
+
+            {/* Profile Nav (Bottom) */}
+            <div className={`mt-auto ${isCollapsed ? 'px-2' : 'px-3'} mb-2 border-t border-white/5 pt-2`}>
+                <NavItem
+                    icon={user?.avatar_path ? (
+                        <div className="w-5 h-5 rounded-full overflow-hidden border border-white/20">
+                            <img src={`${API_BASE}${user.avatar_path}`} alt="Avatar" className="w-full h-full object-cover" />
+                        </div>
+                    ) : (
+                        <IoPersonCircleOutline size={20} />
+                    )}
+                    label="Profile"
+                    active={currentFolderId === 'profile'}
+                    onClick={() => onNavigate('profile')}
+                    isCollapsed={isCollapsed}
+                />
             </div>
 
             {/* Scan Progress */}

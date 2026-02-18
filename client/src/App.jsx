@@ -13,23 +13,27 @@ import Sidebar from './components/Sidebar' // [NEW]
 import { PlaylistManager } from './utils/PlaylistManager' // [NEW]
 import ConfirmModal from './components/ConfirmModal'
 import { AlbumGrid, ArtistGrid } from './components/LibraryViews'
+
 import { cleanTitle } from './utils/format';
+import ProfileScreen from './components/ProfileScreen'; // [NEW]
+
+import { AuthProvider, useAuth } from './context/AuthContext'; // [NEW]
+import AuthScreen from './components/AuthScreen'; // [NEW]
 
 // Environment variable for API URL (Production vs Dev)
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-function App() {
+function AppContent() {
   // Constants
   const LOCK_TIME = 5 * 60 * 1000; // 5 minutes
 
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Check if we have a valid session
-    const lastActive = localStorage.getItem('driveplayer_last_active');
-    if (!lastActive) return false;
+  const { user, token, logout, loading: authLoading } = useAuth(); // [NEW] Auth Hook
+  const [isAuthenticated, setIsAuthenticated] = useState(false); // Internal lock state
 
-    const elapsed = Date.now() - parseInt(lastActive, 10);
-    return elapsed < LOCK_TIME;
-  });
+  // Sync AuthContext user with local lock state
+  useEffect(() => {
+    if (user) setIsAuthenticated(true);
+  }, [user]);
 
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -42,20 +46,15 @@ function App() {
   // --- Queue System ---
   const [queue, setQueue] = useState([]);
 
-  // Favorites State (Persisted in localStorage)
-  const [likedSongs, setLikedSongs] = useState(() => {
-    const saved = localStorage.getItem('driveplayer_favorites');
-    try {
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error("Failed to parse favorites", e);
-      return [];
-    }
-  });
+  // Favorites State (Now fetched from API)
+  const [likedSongs, setLikedSongs] = useState([]);
 
+  // Fetch Favorites on Auth
   useEffect(() => {
-    localStorage.setItem('driveplayer_favorites', JSON.stringify(likedSongs));
-  }, [likedSongs]);
+    if (user) {
+      axios.get(`${API_BASE}/api/favorites`).then(res => setLikedSongs(res.data)).catch(console.error);
+    }
+  }, [user]);
 
   // Playlist State [NEW]
   const [playlists, setPlaylists] = useState([]);
@@ -77,16 +76,20 @@ function App() {
   }, [playCounts]);
 
   const refreshPlaylists = useCallback(() => {
-    setPlaylists(PlaylistManager.getAll());
-  }, []);
+    if (user) {
+      axios.get(`${API_BASE}/api/playlists`).then(res => setPlaylists(res.data)).catch(console.error);
+    }
+  }, [user]);
 
   useEffect(() => {
     refreshPlaylists();
   }, [refreshPlaylists]);
 
-  const handleCreatePlaylist = (name) => {
-    PlaylistManager.create(name);
-    refreshPlaylists();
+  const handleCreatePlaylist = async (name) => {
+    try {
+      await axios.post(`${API_BASE}/api/playlists`, { id: Date.now().toString(), name });
+      refreshPlaylists();
+    } catch (e) { console.error(e); }
   };
 
   const handleDeletePlaylist = (e, id) => {
@@ -94,10 +97,12 @@ function App() {
       isOpen: true,
       title: 'Delete Playlist?',
       message: 'This action cannot be undone. Are you sure you want to delete this playlist?',
-      onConfirm: () => {
-        PlaylistManager.delete(id);
-        refreshPlaylists();
-        if (currentFolderId === id) handleGoHome();
+      onConfirm: async () => {
+        try {
+          await axios.delete(`${API_BASE}/api/playlists/${id}`);
+          refreshPlaylists();
+          if (currentFolderId === id) handleGoHome();
+        } catch (e) { console.error(e); }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
     });
@@ -134,13 +139,22 @@ function App() {
       // Fetch and sort logic is inside fetchFiles or handled here
       fetchFiles('charts');
       setCurrentFolderName('Top 20 Charts');
+      setCurrentFolderName('Top 20 Charts');
       window.history.pushState({ folderId: 'charts' }, '', '?folder=charts');
+    } else if (id === 'profile') {
+      // Profile View
+      setSearchQuery('');
+      setIsSearching(false);
+      setCurrentFolderId('profile');
+      setCurrentFolderName('Profile');
+      loading && setLoading(false);
+      window.history.pushState({ folderId: 'profile' }, '', '?folder=profile');
     } else if (id.startsWith('lib:')) {
       // Library routes (Songs, Albums, Artists)
       handleFolderClick(id);
     } else {
       // Playlist
-      const playlist = playlists.find(p => p.id === id);
+      const playlist = playlists.find(p => p.id === String(id)); // Ensure string comparison
       if (playlist) {
         setSearchQuery('');
         setIsSearching(false);
@@ -303,16 +317,23 @@ function App() {
     return [Math.round(r1 * 255), Math.round(g1 * 255), Math.round(b1 * 255)];
   };
 
-  const toggleLike = (song) => {
+  const toggleLike = async (song) => {
     if (!song) return;
-    setLikedSongs(prev => {
-      const exists = prev.find(s => s.id === song.id);
+    const exists = likedSongs.find(s => s.id === song.id);
+
+    // Optimistic Update
+    setLikedSongs(prev => exists ? prev.filter(s => s.id !== song.id) : [...prev, song]);
+
+    try {
       if (exists) {
-        return prev.filter(s => s.id !== song.id);
+        await axios.delete(`${API_BASE}/api/favorites/${song.id}`);
       } else {
-        return [...prev, song];
+        await axios.post(`${API_BASE}/api/favorites/${song.id}`);
       }
-    });
+    } catch (e) {
+      console.error("Failed to toggle like", e);
+      // Revert on failure (could improve this)
+    }
   };
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -517,9 +538,16 @@ function App() {
     }
 
     // Special Case: Playlists [NEW]
-    const playlist = PlaylistManager.getAll().find(p => p.id === folderId);
+    const playlist = playlists.find(p => p.id === String(folderId));
     if (playlist) {
-      setFiles(playlist.songs);
+      // Fetch songs for this playlist (TODO: Backend endpoint for playlist songs)
+      // For now, if we don't have a backend endpoint returning songs with the playlist, 
+      // we might need to change how we fetch.
+      // Assuming GET /api/playlists returns metadata, we need to fetch items.
+      // Let's assume for now we don't have song list in 'playlists' state efficiently yet.
+      // We'll rely on a future update to fetch playlist contents.
+      // TEMPORARY: Just clear or show empty until we implement GET /api/playlists/:id
+      setFiles([]);
       setCurrentFolderName(playlist.name);
       setLoading(false);
       return;
@@ -769,7 +797,12 @@ function App() {
         } else {
           setCurrentFolderId(state.folderId);
           fetchFiles(state.folderId);
+          fetchFiles(state.folderId);
         }
+      } else if (state && state.folderId === 'profile') {
+        setCurrentFolderId('profile');
+        setCurrentFolderName('Profile');
+        setLoading(false);
       } else {
         // Back to root
         setCurrentFolderId(null);
@@ -847,7 +880,15 @@ function App() {
       // Set Queue to current view's songs
       const currentSongs = sortedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
       setQueue(currentSongs);
-      setCurrentSong(song);
+
+      // Inject clean title if missing (using context-aware cleaner)
+      const cleanedTitle = cleanTitleCallback(song.name);
+      const songWithTitle = {
+        ...song,
+        title: song.title || cleanedTitle
+      };
+
+      setCurrentSong(songWithTitle);
       setIsPlaying(true);
     }
   };
@@ -872,7 +913,9 @@ function App() {
         setIsShuffle(true);
 
         const randomIndex = Math.floor(Math.random() * songList.length);
-        setCurrentSong(songList[randomIndex]);
+        const randomSong = songList[randomIndex];
+        // Inject clean title
+        setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
         setIsPlaying(true);
       } else {
         alert("No audio files found in this folder.");
@@ -932,7 +975,9 @@ function App() {
       return;
     }
 
-    setCurrentSong(activeList[nextIndex]);
+    const nextSong = activeList[nextIndex];
+    // Inject clean title
+    setCurrentSong({ ...nextSong, title: nextSong.title || cleanTitleCallback(nextSong.name) });
     setIsPlaying(true);
   };
 
@@ -951,7 +996,9 @@ function App() {
     const currentIndex = activeList.findIndex(s => s.id === currentSong.id);
     const startIdx = currentIndex === -1 ? 0 : currentIndex;
     const prevIndex = (startIdx - 1 + activeList.length) % activeList.length;
-    setCurrentSong(activeList[prevIndex]);
+    const prevSong = activeList[prevIndex];
+    // Inject clean title
+    setCurrentSong({ ...prevSong, title: prevSong.title || cleanTitleCallback(prevSong.name) });
     setIsPlaying(true);
   };
 
@@ -992,7 +1039,9 @@ function App() {
           setIsShuffle(true);
 
           const randomIndex = Math.floor(Math.random() * allSongs.length);
-          setCurrentSong(allSongs[randomIndex]);
+          const randomSong = allSongs[randomIndex];
+          // Inject clean title
+          setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
           setIsPlaying(true);
         } else {
           alert("No songs found in your library.");
@@ -1074,6 +1123,7 @@ function App() {
             onDeletePlaylist={handleDeletePlaylist}
             isCollapsed={isSidebarCollapsed}
             onToggle={toggleSidebar}
+            user={user} // [NEW]
           />
         </div>
       )}
@@ -1230,7 +1280,9 @@ function App() {
       {/* Main Content - Fixed Layout for Glass Effect */}
       <main ref={mainScrollRef} className={`fixed inset-0 pt-20 overflow-y-auto custom-scrollbar pb-32 z-0 transition-all duration-300 ${!isMobile ? (isSidebarCollapsed ? 'pl-20' : 'pl-64') : ''}`}>
 
-        {currentFolderId === 'lib:albums' ? (
+        {currentFolderId === 'profile' ? (
+          <ProfileScreen likedSongsCount={likedSongs.length} playlistsCount={playlists.length} />
+        ) : currentFolderId === 'lib:albums' ? (
           <AlbumGrid
             files={files} // Use raw files for grid grouping
             onAlbumClick={(name) => handleFolderClick('lib:album:' + encodeURIComponent(name))}
@@ -1331,4 +1383,21 @@ function App() {
   )
 }
 
-export default App
+function App() {
+  return (
+    <AuthProvider>
+      <AppWrapper />
+    </AuthProvider>
+  );
+}
+
+function AppWrapper() {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div className="h-screen w-full bg-black flex items-center justify-center text-white">Loading...</div>;
+  if (!user) return <AuthScreen />;
+
+  return <AppContent />;
+}
+
+export default App;

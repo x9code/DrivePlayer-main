@@ -70,6 +70,30 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
         }
     }, [currentSong]);
 
+    const displayMeta = useMemo(() => {
+        if (!currentSong) return { title: '', artist: '' };
+
+        const cleaned = cleanTitle(currentSong.name);
+
+        // Priority: 1. currentSong.title (from list), 2. meta.title (fetched async), 3. cleanTitle(filename)
+        let titleText = currentSong.title || meta.title || cleaned;
+
+        // TRUST THE SOURCE: If we have a title from App.jsx or Metadata, use it.
+        // Only revert to local cleaning if we have NO title at all.
+        if (titleText) {
+            return { title: titleText, artist: currentSong.artist || meta.artist || 'Unknown Artist' };
+        }
+
+        // Fallback to local cleaning if absolutely necessary
+        if (cleaned) {
+            titleText = cleaned;
+        }
+
+        const artistText = currentSong.artist || meta.artist || 'Unknown Artist';
+
+        return { title: titleText, artist: artistText };
+    }, [currentSong, meta]);
+
     useEffect(() => {
         if (currentSong && audioRef.current) {
             if (isPlaying) {
@@ -81,33 +105,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
             const handleFS = () => setIsFullScreen(!!document.fullscreenElement);
             document.addEventListener('fullscreenchange', handleFS);
 
-            const cleaned = cleanTitle(currentSong.name);
-            let titleText = currentSong.title || cleaned;
-
-            // SAFE OVERRIDE (Consistent with SongList)
-            if (cleaned && titleText) {
-                const lowerClean = cleaned.toLowerCase();
-                const lowerTitle = titleText.toLowerCase();
-
-                // 1. Version Tags
-                const versionTags = ['remix', 'mix', 'dub', 'edit', 'sped up', 'spedup', 'slowed', 'reverb', 'instrumental', 'acoustic', 'demo', 'live', 'extended', 'radio', 'club', 'cover', 'version'];
-                const hasVersionTag = versionTags.some(tag => lowerClean.includes(tag));
-                const titleHasTag = versionTags.some(tag => lowerTitle.includes(tag));
-
-                if (hasVersionTag && !titleHasTag) {
-                    titleText = cleaned;
-                } else {
-                    // 2. Parentheses Mismatch (e.g. catches "(Sped Up)" or "(feat. X)")
-                    const cleanParens = cleaned.match(/[\(\[][^\)\]]+[\)\]]/g) || [];
-                    const titleParens = titleText.match(/[\(\[][^\)\]]+[\)\]]/g) || [];
-                    if (cleanParens.length > titleParens.length) {
-                        titleText = cleaned;
-                    }
-                }
-            }
-
-            const artistText = currentSong.artist || meta.artist || 'DrivePlayer';
-            document.title = isPlaying ? `${titleText} • ${artistText}` : 'DrivePlayer';
+            document.title = isPlaying ? `${displayMeta.title} • ${displayMeta.artist}` : 'DrivePlayer';
 
             // MediaSession API
             if ('mediaSession' in navigator) {
@@ -115,8 +113,8 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 const artUrl = new URL(`${API_BASE}/api/thumbnail/${currentSong.id}?folderId=${folderId}`, window.location.origin).href;
 
                 navigator.mediaSession.metadata = new MediaMetadata({
-                    title: titleText,
-                    artist: artistText,
+                    title: displayMeta.title,
+                    artist: displayMeta.artist,
                     album: meta.album || 'DrivePlayer',
                     artwork: [
                         { src: artUrl, sizes: '96x96', type: 'image/png' },
@@ -152,7 +150,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 document.removeEventListener('fullscreenchange', handleFS);
             };
         }
-    }, [currentSong, isPlaying, meta, onNext, onPrev, setIsPlaying]);
+    }, [currentSong, isPlaying, displayMeta, onNext, onPrev, setIsPlaying, meta.album]);
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -245,7 +243,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 className={`fixed z-50 transition-all duration-700 cubic-bezier(0.32, 0.72, 0, 1) overflow-hidden
                     left-0 right-0 mx-auto
                     ${isExpanded
-                        ? 'bottom-0 w-full h-full rounded-none border border-transparent' // Expanded
+                        ? 'bottom-0 w-full h-full rounded-none border-none' // Expanded: Fully cover screen (animate up)
                         : 'bottom-6 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini
                     } text-white`}
                 onClick={handlePlayerClick}
@@ -300,7 +298,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         </div>
                         <div className="flex flex-col overflow-hidden">
                             <div className="flex items-center gap-2 overflow-hidden w-full">
-                                <h3 className="font-semibold text-sm truncate text-white min-w-0">{meta.title || currentSong.title || cleanTitle(currentSong.name)}</h3>
+                                <h3 className="font-semibold text-sm truncate text-white min-w-0">{displayMeta.title}</h3>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onAddPlaylist(currentSong); }}
                                     className="text-zinc-400 hover:text-white transition-colors shrink-0 mt-[3px]"
@@ -309,7 +307,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                     <IoAddCircleOutline size={18} />
                                 </button>
                             </div>
-                            <p className="text-zinc-400 text-xs truncate">{meta.artist || currentSong.artist || 'Unknown Artist'}</p>
+                            <p className="text-zinc-400 text-xs truncate">{displayMeta.artist}</p>
                         </div>
                     </div>
 
@@ -367,6 +365,17 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         </button>
 
                         <div className="flex gap-3">
+                            {/* Manual Focus/Immersive Button (Appears on Left) */}
+                            {showLyrics && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setIsIdle(true); }}
+                                    className="glass-button h-10 w-10 rounded-full flex items-center justify-center hover:text-white hover:bg-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                                    title="Enter Immersive Mode"
+                                >
+                                    <IoScan size={18} />
+                                </button>
+                            )}
+
                             {/* Lyrics Toggle */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); setShowLyrics(!showLyrics); }}
@@ -375,17 +384,6 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 <IoMusicalNote size={16} />
                                 <span className="text-xs font-bold">Lyrics</span>
                             </button>
-
-                            {/* Manual Focus/Immersive Button */}
-                            {showLyrics && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setIsIdle(true); }}
-                                    className="glass-button h-10 w-10 rounded-full flex items-center justify-center hover:text-white hover:bg-white/10"
-                                    title="Enter Immersive Mode"
-                                >
-                                    <IoScan size={18} />
-                                </button>
-                            )}
 
                             <button
                                 onClick={(e) => {
@@ -446,8 +444,8 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 >
                                     <Lyrics
                                         audioRef={audioRef}
-                                        artist={meta.artist || currentSong.artist || ''}
-                                        title={meta.title || currentSong.title || currentSong.name}
+                                        artist={displayMeta.artist}
+                                        title={displayMeta.title}
                                         isExpanded={isExpanded}
                                         isIdle={isIdle}
                                     />
@@ -458,9 +456,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         {/* Text */}
                         <div className={`text-center space-y-1 transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0' : 'opacity-100'}`}>
                             <div className="flex items-center justify-center gap-3">
-                                <h2 className="text-3xl font-bold text-white truncate max-w-xs">{meta.title || currentSong.title || cleanTitle(currentSong.name)}</h2>
+                                <h2 className="text-3xl font-bold text-white truncate max-w-xs">{displayMeta.title}</h2>
                             </div>
-                            <p className="text-lg text-zinc-400 font-medium">{meta.artist || currentSong.artist || 'Unknown Artist'}</p>
+                            <p className="text-lg text-zinc-400 font-medium">{displayMeta.artist}</p>
                         </div>
 
 

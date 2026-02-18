@@ -18,10 +18,11 @@ const {
 const ArtService = require('./artService');
 
 class MetadataService {
-    constructor(driveService, cacheService, cacheDir) {
+    constructor(driveService, cacheService, cacheDir, libraryService) {
         this.driveService = driveService;
         this.cacheService = cacheService;
         this.cacheDir = cacheDir;
+        this.libraryService = libraryService;
         this.metadataCacheFile = path.join(cacheDir, 'metadata_cache.json');
         this.folderCoversFile = path.join(cacheDir, 'folder_covers.json');
         this.persistentCache = {};
@@ -215,6 +216,11 @@ class MetadataService {
             // Cache the result in memory too
             await this.cacheService.set(fileId, metadata);
 
+            // [NEW] Sync with DB
+            if (this.libraryService) {
+                await this.libraryService.updateMetadata(fileId, metadata);
+            }
+
             return metadata;
         } catch (error) {
             console.error(`[Metadata] Error parsing ${fileId}:`, error.message);
@@ -324,6 +330,10 @@ class MetadataService {
                 // Skip if already has good metadata (heuristic) UNLESS forced
                 if (!force && this.persistentCache[file.id]) {
                     // Already cached
+                    // [NEW] Ensure DB is synced even if cached (Critical for consistency)
+                    if (this.libraryService) {
+                        await this.libraryService.updateMetadata(file.id, this.persistentCache[file.id]);
+                    }
                     return;
                 }
 
@@ -402,14 +412,30 @@ class MetadataService {
         const format = parsed.format || {};
 
         // Apply fallback chain with sanitization
-        const title = sanitizeString(common.title)
-            || parseFilename(filename)
-            || "Unknown Title";
+        // Apply fallback chain with sanitization
+        let title = sanitizeString(common.title);
 
-        const artist = sanitizeString(common.artist)
-            || sanitizeString(common.albumartist)
-            || parseArtistFromFilename(filename)
-            || "Unknown Artist";
+        // [NEW] Heuristic: If Title tag exists but looks like a filename (contains " - " or starts with "01 "), 
+        // trust our sanitizer more than the tag. This fixes "Lana Del Rey - Title" as a title.
+        if (title && (title.includes(' - ') || title.match(/^\d+[\s._-]/))) {
+            const clean = parseFilename(title);
+            // If sanitizer extracted a meaningful part (shorter), use it
+            if (clean && clean.length < title.length && clean.length > 1) {
+                title = clean;
+            }
+        }
+
+        title = title || parseFilename(filename) || "Unknown Title";
+
+        let artist = sanitizeString(common.artist)
+            || sanitizeString(common.albumartist);
+
+        // [NEW] Fallback for artist if missing
+        if (!artist) {
+            artist = parseArtistFromFilename(filename);
+        }
+
+        artist = artist || "Unknown Artist";
 
         const album = sanitizeString(common.album)
             || "Unknown Album";

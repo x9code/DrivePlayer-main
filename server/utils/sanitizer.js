@@ -34,25 +34,28 @@ function parseFilename(filename) {
     if (!filename) return null;
 
     // Remove file extension
-    let name = filename.replace(/\.(mp3|m4a|flac|opus|wav|ogg|aac)$/i, '');
+    let name = filename.replace(/\.(mp3|m4a|flac|opus|wav|ogg|aac|wma|m4b)$/i, '');
 
-    // Remove leading track numbers (01, 02, etc.)
-    name = name.replace(/^\d{1,3}[\s._-]+/, '');
-
-    // Remove duplicate suffixes like (1), (2), copy 1, etc.
-    name = name.replace(/\s*\(\d+\)$/, ''); // matches " (1)", " (2)" at end
-    name = name.replace(/\s*copy\s*\d*$/i, ''); // matches " copy", " copy 1"
-
-    // If pattern "Artist - Title", extract Title
+    // 1. Handle "Artist - Album - Title" or "Artist - Title"
+    // We assume the Title is always the LAST part.
     if (name.includes(' - ')) {
         const parts = name.split(' - ');
-        name = parts[parts.length - 1]; // Take last part as title
+        name = parts[parts.length - 1];
     }
 
-    // Replace common separators with spaces
-    name = name.replace(/[_-]+/g, ' ');
+    // 2. Remove Track Numbers (Aggressive)
+    // Matches "01", "01-05", "1.", "1 -", "01. "
+    // ^\d+              -> Starts with number
+    // (?:-\d+)?         -> Optional second number (e.g. 01-05)
+    // [\s._-]+          -> Separator (space, dot, underscore, dash)
+    name = name.replace(/^\d+(?:-\d+)?[\s._-]+/, '');
 
-    // Clean up multiple spaces
+    // 3. Remove duplicate suffixes
+    name = name.replace(/\s*\(\d+\)$/, ''); // matches " (1)"
+    name = name.replace(/\s*copy\s*\d*$/i, ''); // matches " copy"
+
+    // 4. Clean up
+    name = name.replace(/[_-]+/g, ' '); // Replace remaining underscores/dashes with spaces
     name = name.replace(/\s+/g, ' ').trim();
 
     return name || null;
