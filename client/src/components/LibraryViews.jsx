@@ -201,6 +201,100 @@ export const AlbumGrid = ({ files, onAlbumClick, viewMode = 'grid' }) => {
     );
 };
 
+// --- Artist Image Cache (client-side, per-session) ---
+const artistImageCache = {};
+
+const ArtistCard = React.memo(({ artist, onArtistClick }) => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const [imageUrl, setImageUrl] = useState(artistImageCache[artist.name] || null);
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageFailed, setImageFailed] = useState(artistImageCache[artist.name] === 'none');
+
+    // Fetch artist image on mount
+    React.useEffect(() => {
+        if (imageUrl || imageFailed) return; // Already have it or failed
+
+        const fetchImage = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/artist/image?name=${encodeURIComponent(artist.name)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    artistImageCache[artist.name] = data.imageUrl;
+                    setImageUrl(data.imageUrl);
+                    return;
+                }
+            } catch { /* fall through to album art */ }
+
+            // Fallback: Use album art from the first song
+            if (artist.songs?.length > 0) {
+                const firstSongId = artist.songs[0].id;
+                if (firstSongId) {
+                    const fallbackUrl = `${API_BASE}/api/thumbnail/${firstSongId}`;
+                    artistImageCache[artist.name] = fallbackUrl;
+                    setImageUrl(fallbackUrl);
+                    return;
+                }
+            }
+
+            artistImageCache[artist.name] = 'none';
+            setImageFailed(true);
+        };
+
+        fetchImage();
+    }, [artist.name]);
+
+    return (
+        <div
+            onClick={() => onArtistClick(artist.name)}
+            className="group bg-white/5 hover:bg-white/10 rounded-[2rem] p-3 transition-all duration-500 cursor-pointer flex flex-col gap-3 shadow-2xl hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)] hover:-translate-y-1 relative"
+        >
+            <div className="w-full aspect-square bg-zinc-800 rounded-2xl shadow-lg flex items-center justify-center overflow-hidden relative">
+                {imageUrl && !imageFailed ? (
+                    <>
+                        <img
+                            src={imageUrl}
+                            alt={artist.name}
+                            className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-110 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                            onLoad={() => setImageLoaded(true)}
+                            onError={() => {
+                                setImageFailed(true);
+                                artistImageCache[artist.name] = 'none';
+                            }}
+                        />
+                        {!imageLoaded && (
+                            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-700 to-zinc-600 flex items-center justify-center animate-pulse">
+                                <IoPersonOutline className="text-5xl text-white/20" />
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-700 to-zinc-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-700">
+                        <IoPersonOutline className="text-5xl text-white/20 group-hover:text-white/40 transition-colors" />
+                    </div>
+                )}
+
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+
+                {/* Play Button */}
+                <div className="absolute right-2 bottom-2 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out z-10">
+                    <div
+                        className="bg-white/90 rounded-full p-2 text-black shadow-xl hover:scale-105 transition-transform hover:bg-white"
+                        title="Play Artist"
+                    >
+                        <IoPlay size={16} className="pl-0.5 text-black" />
+                    </div>
+                </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex flex-col gap-0.5 px-1 pb-1">
+                <h3 className="font-bold text-[15px] leading-tight text-white line-clamp-2 w-full" title={artist.name}>{artist.name}</h3>
+                <p className="text-[11px] text-zinc-400 font-medium">{artist.count} songs</p>
+            </div>
+        </div>
+    );
+});
+
 export const ArtistGrid = ({ files, onArtistClick }) => {
     const artists = useMemo(() => {
         const map = {};
@@ -213,21 +307,23 @@ export const ArtistGrid = ({ files, onArtistClick }) => {
                 return; // Skip files without proper artist metadata
             }
 
-            const artistName = f.artist;
+            // Split multi-artist strings by common delimiters
+            const artistNames = f.artist
+                .split(/[;,\/]|\s+feat\.?\s+|\s+ft\.?\s+|\s+&\s+/i)
+                .map(a => a.trim())
+                .filter(a => a.length > 0);
 
-            if (!map[artistName]) {
-                map[artistName] = {
-                    name: artistName,
-                    count: 0,
-                    art: null,
-                    songs: []
-                };
-            }
-            map[artistName].count++;
-            map[artistName].songs.push(f);
-            if (!map[artistName].art && f.thumbnailLink) {
-                map[artistName].art = f.thumbnailLink;
-            }
+            artistNames.forEach(artistName => {
+                if (!map[artistName]) {
+                    map[artistName] = {
+                        name: artistName,
+                        count: 0,
+                        songs: []
+                    };
+                }
+                map[artistName].count++;
+                map[artistName].songs.push(f);
+            });
         });
 
         return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
@@ -247,23 +343,7 @@ export const ArtistGrid = ({ files, onArtistClick }) => {
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {artists.map(artist => (
-                        <div
-                            key={artist.name}
-                            onClick={() => onArtistClick(artist.name)}
-                            className="group bg-white/5 hover:bg-white/10 rounded-full p-4 transition-all cursor-pointer flex flex-col items-center text-center gap-2 aspect-square justify-center"
-                        >
-                            <div className="w-24 h-24 rounded-full bg-zinc-800 shadow-lg flex items-center justify-center overflow-hidden mb-2 relative">
-                                {artist.art ? (
-                                    <img src={artist.art} alt={artist.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <IoPersonOutline className="text-3xl text-zinc-600 group-hover:text-primary transition-colors" />
-                                )}
-                            </div>
-                            <div className="w-full overflow-hidden px-2">
-                                <h3 className="font-bold text-white truncate w-full" title={artist.name}>{artist.name}</h3>
-                                <p className="text-xs text-zinc-400">{artist.count} songs</p>
-                            </div>
-                        </div>
+                        <ArtistCard key={artist.name} artist={artist} onArtistClick={onArtistClick} />
                     ))}
                 </div>
             )}

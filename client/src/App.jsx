@@ -3,8 +3,7 @@ import { Analytics } from "@vercel/analytics/react"
 import axios from 'axios'
 import Player from './components/Player'
 import SongList from './components/SongList'
-import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoLockClosedOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline } from 'react-icons/io5'
-import LockScreen from './components/LockScreen'
+import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline } from 'react-icons/io5'
 import SettingsModal from './components/SettingsModal'
 import AddToPlaylistModal from './components/AddToPlaylistModal'
 
@@ -24,16 +23,9 @@ import AuthScreen from './components/AuthScreen'; // [NEW]
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 function AppContent() {
-  // Constants
-  const LOCK_TIME = 5 * 60 * 1000; // 5 minutes
-
   const { user, token, logout, loading: authLoading } = useAuth(); // [NEW] Auth Hook
-  const [isAuthenticated, setIsAuthenticated] = useState(false); // Internal lock state
 
-  // Sync AuthContext user with local lock state
-  useEffect(() => {
-    if (user) setIsAuthenticated(true);
-  }, [user]);
+
 
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -159,7 +151,7 @@ function AppContent() {
         setSearchQuery('');
         setIsSearching(false);
         setCurrentFolderId(id);
-        setFiles(playlist.songs);
+        setFiles(playlist.songs || []);
         setCurrentFolderName(playlist.name);
         setLoading(false);
         window.history.pushState({ folderId: id }, '', `?folder=${id}`);
@@ -184,14 +176,7 @@ function AppContent() {
     localStorage.setItem('driveplayer_gradient', gradientEnabled);
   }, [gradientEnabled]);
 
-  // Auto Lock State
-  const [autoLockEnabled, setAutoLockEnabled] = useState(() => {
-    return localStorage.getItem('driveplayer_autolock') !== 'false'; // Default true
-  });
 
-  useEffect(() => {
-    localStorage.setItem('driveplayer_autolock', autoLockEnabled);
-  }, [autoLockEnabled]);
 
   // Mobile Detection
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -319,7 +304,7 @@ function AppContent() {
 
   const toggleLike = async (song) => {
     if (!song) return;
-    const exists = likedSongs.find(s => s.id === song.id);
+    const exists = (likedSongs || []).find(s => s.id === song.id);
 
     // Optimistic Update
     setLikedSongs(prev => exists ? prev.filter(s => s.id !== song.id) : [...prev, song]);
@@ -346,96 +331,7 @@ function AppContent() {
   const [songToAdd, setSongToAdd] = useState(null);
   // showSortMenu moved to Sorting State section
 
-  // Helper to update last active time
-  const updateLastActive = useCallback(() => {
-    localStorage.setItem('driveplayer_last_active', Date.now().toString());
-  }, []);
 
-  const handleUnlock = () => {
-    setIsAuthenticated(true);
-    updateLastActive();
-  };
-
-  const handleLock = useCallback(() => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('driveplayer_last_active');
-    setIsPlaying(false); // Stop music on lock
-  }, []);
-
-  // Global Keyboard Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Ctrl + L to Lock
-      if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
-        e.preventDefault();
-        handleLock();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleLock]);
-
-  // Persistent Auto-lock Logic
-  useEffect(() => {
-    if (!isAuthenticated || !autoLockEnabled) return;
-
-    let timeout;
-
-    const checkInactivity = () => {
-      const lastActive = parseInt(localStorage.getItem('driveplayer_last_active') || '0', 10);
-      const now = Date.now();
-
-      // If playing, we assume active, so we update the timestamp to now
-      // This ensures that if the user closes the app while playing, the timestamp is fresh.
-      if (isPlaying) {
-        updateLastActive();
-        timeout = setTimeout(checkInactivity, 10000); // Check again in 10s (act as heartbeat)
-        return;
-      }
-
-      if (now - lastActive > LOCK_TIME) {
-        handleLock();
-      } else {
-        // Schedule next check
-        // Calculate remaining time, but cap it at e.g. 1 sec minimum to avoid hot loops
-        const remaining = LOCK_TIME - (now - lastActive);
-        // If remaining is large, we can wait that long. 
-        // BUT users might close/reopen, so we rely on the init check for that.
-        // Here we just want to lock LIVE if they sit idle.
-        timeout = setTimeout(checkInactivity, Math.max(1000, remaining));
-      }
-    };
-
-    // User Interaction Listener
-    // We throttle writing to localStorage to avoid perf issues
-    let lastThrottledUpdate = 0;
-    const handleUserActivity = () => {
-      const now = Date.now();
-      if (now - lastThrottledUpdate > 5000) { // Update max once every 5s
-        updateLastActive();
-        lastThrottledUpdate = now;
-
-        // If we were waiting for a lock, we might want to restart the check logic?
-        // Actually the check logic relies on localStorage, so updating it is enough.
-        // But we should ensure the timeout is running.
-        clearTimeout(timeout);
-        timeout = setTimeout(checkInactivity, LOCK_TIME);
-      }
-    };
-
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
-    events.forEach(event => window.addEventListener(event, handleUserActivity));
-
-    // Start loop
-    checkInactivity();
-
-
-    return () => {
-      clearTimeout(timeout);
-      events.forEach(event => window.removeEventListener(event, handleUserActivity));
-    };
-  }, [isAuthenticated, isPlaying, handleLock, updateLastActive, autoLockEnabled]);
 
   // Sorting State
   const [sortOption, setSortOption] = useState('name'); // 'name', 'date', 'size'
@@ -630,10 +526,19 @@ function AppContent() {
           setCurrentFolderName('Artists');
           setFiles(allFiles);
         } else if (folderId.startsWith('lib:artist:')) {
-          const artist = decodeURIComponent(folderId.split(':')[2]);
-          setCurrentFolderName(artist);
-          // Filter by artist - ONLY use embedded metadata
-          setFiles(allFiles.filter(f => f.artist === artist));
+          const artistName = decodeURIComponent(folderId.substring('lib:artist:'.length));
+          setCurrentFolderName(artistName);
+          // Filter by artist - Handle multi-artist strings
+          setFiles(allFiles.filter(f => {
+            if (!f.artist) return false;
+            // Check if exact match OR if it's one of the split artists
+            if (f.artist === artistName) return true;
+
+            const artists = f.artist
+              .split(/[;,\/]|\s+feat\.?\s+|\s+ft\.?\s+|\s+&\s+/i)
+              .map(a => a.trim());
+            return artists.includes(artistName);
+          }));
         } else if (folderId.startsWith('lib:album:')) {
           const album = decodeURIComponent(folderId.split(':')[2]);
           setCurrentFolderName(album);
@@ -655,7 +560,7 @@ function AppContent() {
         : `${API_BASE}/api/files`;
 
       const res = await axios.get(url);
-      setFiles(res.data.files);
+      setFiles(res.data.files || []);
       setCurrentFolderName(res.data.folderName || 'Library');
 
       // 2. Update Cache
@@ -689,7 +594,7 @@ function AppContent() {
     setIsSearching(true);
     try {
       const res = await axios.get(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
-      setFiles(res.data);
+      setFiles(res.data || []);
     } catch (error) {
       console.error("Search error:", error);
     } finally {
@@ -724,19 +629,7 @@ function AppContent() {
     const params = new URLSearchParams(window.location.search);
     const folderId = params.get('folder');
 
-    // [NEW] Check for autolock parameter (autolock=true/false or 1/0)
-    const autolockParam = params.get('autolock');
-    if (autolockParam !== null) {
-      const shouldLock = autolockParam === 'true' || autolockParam === '1';
-      setAutoLockEnabled(shouldLock);
-      localStorage.setItem('driveplayer_autolock', shouldLock);
 
-      // If disabling lock, also ensure we unlock immediately
-      if (!shouldLock) {
-        setIsAuthenticated(true);
-        updateLastActive();
-      }
-    }
 
     if (folderId) {
       setCurrentFolderId(folderId);
@@ -1218,7 +1111,7 @@ function AppContent() {
           )}
 
           {/* [NEW] View Toggle (Grid/List) - Only show if current view has folders */}
-          {files.some(f => f.mimeType === 'application/vnd.google-apps.folder') && (
+          {(files || []).some(f => f.mimeType === 'application/vnd.google-apps.folder') && (
             <div className="relative">
               <button
                 onClick={() => setShowViewMenu(!showViewMenu)}
@@ -1300,14 +1193,7 @@ function AppContent() {
             <IoSettingsOutline className="text-xl" />
           </button>
 
-          {/* Lock Button */}
-          <button
-            onClick={handleLock}
-            className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:scale-105"
-            title="Lock App"
-          >
-            <IoLockClosedOutline className="text-xl" />
-          </button>
+
 
           {isMobile && (
             <button
@@ -1334,7 +1220,7 @@ function AppContent() {
       <main ref={mainScrollRef} className={`fixed inset-0 pt-20 overflow-y-auto custom-scrollbar pb-32 z-0 transition-all duration-300 ${!isMobile ? (isSidebarCollapsed ? 'pl-20' : 'pl-64') : ''}`}>
 
         {currentFolderId === 'profile' ? (
-          <ProfileScreen likedSongsCount={likedSongs.length} playlistsCount={playlists.length} />
+          <ProfileScreen likedSongsCount={(likedSongs || []).length} playlistsCount={(playlists || []).length} />
         ) : currentFolderId === 'lib:albums' ? (
           <AlbumGrid
             files={files} // Use raw files for grid grouping
@@ -1392,8 +1278,6 @@ function AppContent() {
             onClose={() => setShowSettings(false)}
             gradientEnabled={gradientEnabled}
             onToggleGradient={() => setGradientEnabled(!gradientEnabled)}
-            autoLockEnabled={autoLockEnabled}
-            onToggleAutoLock={() => setAutoLockEnabled(!autoLockEnabled)}
           />
         )
       }
@@ -1431,8 +1315,7 @@ function AppContent() {
         onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
       />
 
-      {/* Lock Screen Overlay - Always rendered for animation */}
-      <LockScreen isLocked={!isAuthenticated} onUnlock={handleUnlock} />
+
       <Analytics />
     </div>
   )

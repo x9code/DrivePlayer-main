@@ -416,6 +416,102 @@ app.get('/api/lyrics/search', async (req, res) => {
     }
 });
 
+// --- Artist Image Cache (in-memory) ---
+const artistImageCache = new Map();
+
+// Helper: Try fetching artist image from multiple sources
+async function fetchArtistImage(name) {
+    // Source 1: Deezer (free, no auth)
+    try {
+        const deezerRes = await axios.get('https://api.deezer.com/search/artist', {
+            params: { q: name, limit: 3 },
+            timeout: 5000
+        });
+        if (deezerRes.data?.data?.length > 0) {
+            // Find best match (case-insensitive name match preferred)
+            const exact = deezerRes.data.data.find(a => a.name.toLowerCase() === name.toLowerCase());
+            const artist = exact || deezerRes.data.data[0];
+            const url = artist.picture_xl || artist.picture_big || artist.picture_medium;
+            // Filter out Deezer's default placeholder
+            if (url && !url.includes('/artist//') && !url.includes('default_artist')) {
+                return url;
+            }
+        }
+    } catch (e) {
+        console.warn('[Artist Image] Deezer failed:', e.message);
+    }
+
+    // Source 2: iTunes / Apple Music (free, no auth)
+    try {
+        const itunesRes = await axios.get('https://itunes.apple.com/search', {
+            params: { term: name, entity: 'musicArtist', limit: 1 },
+            timeout: 5000
+        });
+        if (itunesRes.data?.results?.length > 0) {
+            // iTunes doesn't return artist images directly, but let's search for albums
+            const albumRes = await axios.get('https://itunes.apple.com/search', {
+                params: { term: name, entity: 'album', limit: 1 },
+                timeout: 5000
+            });
+            if (albumRes.data?.results?.length > 0) {
+                // Get high-res album artwork (replace 100x100 with 600x600)
+                const artworkUrl = albumRes.data.results[0].artworkUrl100;
+                if (artworkUrl) {
+                    return artworkUrl.replace('100x100', '600x600');
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[Artist Image] iTunes failed:', e.message);
+    }
+
+    // Source 3: TheAudioDB (free tier, no auth)
+    try {
+        const audioDB = await axios.get(`https://www.theaudiodb.com/api/v1/json/2/search.php`, {
+            params: { s: name },
+            timeout: 5000
+        });
+        if (audioDB.data?.artists?.length > 0) {
+            const artist = audioDB.data.artists[0];
+            const url = artist.strArtistThumb || artist.strArtistFanart || artist.strArtistBanner;
+            if (url) return url;
+        }
+    } catch (e) {
+        console.warn('[Artist Image] TheAudioDB failed:', e.message);
+    }
+
+    return null; // All sources exhausted
+}
+
+// API: Artist Image (multi-source fallback)
+app.get('/api/artist/image', async (req, res) => {
+    const name = req.query.name;
+    if (!name) return res.status(400).json({ error: 'name parameter required' });
+
+    // Check cache first
+    if (artistImageCache.has(name)) {
+        const cached = artistImageCache.get(name);
+        if (cached === null) return res.status(404).json({ error: 'No image found' });
+        return res.json({ imageUrl: cached });
+    }
+
+    try {
+        const imageUrl = await fetchArtistImage(name);
+
+        if (imageUrl) {
+            artistImageCache.set(name, imageUrl);
+            return res.json({ imageUrl });
+        }
+
+        // All sources failed — cache the miss
+        artistImageCache.set(name, null);
+        return res.status(404).json({ error: 'No image found' });
+    } catch (error) {
+        console.warn('[Artist Image] All sources failed:', error.message);
+        return res.status(500).json({ error: 'Failed to fetch artist image' });
+    }
+});
+
 // API: Trigger Sync
 app.post('/api/sync/trigger', (req, res) => {
     SyncService.startSync(); // Run in background
