@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-const AddToPlaylistModal = ({ song, onClose, onPlaylistUpdate, playlists }) => {
+const AddToPlaylistModal = ({ song, onClose, onPlaylistUpdate, playlists = [] }) => {
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [isCreating, setIsCreating] = useState(false);
 

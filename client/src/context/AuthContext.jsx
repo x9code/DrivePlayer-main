@@ -45,26 +45,54 @@ export const AuthProvider = ({ children }) => {
     const login = async (email, password) => {
         try {
             const res = await axios.post(`${API_BASE}/api/auth/login`, { email, password });
+
+            // Validation: Detect HTML response (SPA Fallback)
+            const contentType = res.headers['content-type'];
+            if (contentType && contentType.includes('text/html')) {
+                throw new Error(`Invalid server response (HTML). Likely missing API_URL in prod. API_BASE is: "${API_BASE}"`);
+            }
+
+            // Validation: Check for token/user
+            if (!res.data || !res.data.token || !res.data.user) {
+                console.error("Login Response Invalid:", res.data);
+                throw new Error("Invalid server response (Missing token/user)");
+            }
+
             const { token, user } = res.data;
             localStorage.setItem('driveplayer_token', token);
             setToken(token);
             setUser(user);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.response?.data?.error || "Login failed" };
+            console.error("Login Error:", err);
+            return { success: false, error: err.response?.data?.error || err.message || "Login failed" };
         }
     };
 
     const register = async (email, password) => {
         try {
             const res = await axios.post(`${API_BASE}/api/auth/register`, { email, password });
+
+            // Validation: Detect HTML response (SPA Fallback)
+            const contentType = res.headers['content-type'];
+            if (contentType && contentType.includes('text/html')) {
+                throw new Error(`Invalid server response (HTML). Likely missing API_URL in prod. API_BASE is: "${API_BASE}"`);
+            }
+
+            // Validation: Check for token/user
+            if (!res.data || !res.data.token || !res.data.user) {
+                console.error("Register Response Invalid:", res.data);
+                throw new Error("Invalid server response (Missing token/user)");
+            }
+
             const { token, user } = res.data;
             localStorage.setItem('driveplayer_token', token);
             setToken(token);
             setUser(user);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.response?.data?.error || "Registration failed" };
+            console.error("Register Error:", err);
+            return { success: false, error: err.response?.data?.error || err.message || "Registration failed" };
         }
     };
 

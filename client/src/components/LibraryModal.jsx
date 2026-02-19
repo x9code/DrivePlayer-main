@@ -5,7 +5,7 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, toggleLike, playlists, onPlaylistUpdate }) => {
+const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, toggleLike, playlists = [], onPlaylistUpdate }) => {
     // const [playlists, setPlaylists] = useState([]); // Use prop
     const [selectedPlaylist, setSelectedPlaylist] = useState(null);
     const [isCreating, setIsCreating] = useState(false);

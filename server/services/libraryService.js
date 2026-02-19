@@ -97,13 +97,31 @@ class LibraryService {
     }
 
     async getPlaylists(userId) {
-        return new Promise((resolve, reject) => {
+        const playlists = await new Promise((resolve, reject) => {
             const sql = `SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at DESC`;
             db.all(sql, [userId], (err, rows) => {
                 if (err) reject(err);
-                else resolve(rows);
+                else resolve(rows || []);
             });
         });
+
+        // Enrich with songs
+        for (const p of playlists) {
+            p.songs = await new Promise((resolve, reject) => {
+                const sql = `
+                    SELECT f.* 
+                    FROM files f
+                    JOIN playlist_songs ps ON f.id = ps.file_id
+                    WHERE ps.playlist_id = ?
+                `;
+                db.all(sql, [p.id], (err, rows) => {
+                    if (err) reject(err);
+                    else resolve(rows || []);
+                });
+            });
+        }
+
+        return playlists;
     }
 
     async createPlaylist(userId, playlistId, name) {
