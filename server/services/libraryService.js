@@ -45,6 +45,17 @@ class LibraryService {
                     PRIMARY KEY (playlist_id, file_id),
                     FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
                 )`);
+
+                // Password Resets
+                db.run(`CREATE TABLE IF NOT EXISTS password_resets (
+                    email TEXT NOT NULL,
+                    token TEXT NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )`, (err) => {
+                    if (err) console.error("Error creating password_resets table:", err);
+                    else console.log("Password Resets table ready");
+                });
             });
         }
     }

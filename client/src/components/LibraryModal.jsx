@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { IoClose, IoAdd, IoMusicalNote, IoTrashOutline, IoArrowBack, IoPlay, IoPencil } from 'react-icons/io5';
-import { PlaylistManager } from '../utils/PlaylistManager';
 import SongList from './SongList';
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, toggleLike }) => {
-    const [playlists, setPlaylists] = useState([]);
+const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, toggleLike, playlists, onPlaylistUpdate }) => {
+    // const [playlists, setPlaylists] = useState([]); // Use prop
     const [selectedPlaylist, setSelectedPlaylist] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -35,29 +34,44 @@ const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, to
         }
     };
 
-    const refreshPlaylists = () => {
-        setPlaylists(PlaylistManager.getAll());
-    };
+    // No local refresh needed, App handles it
+    // const refreshPlaylists = () => {
+    //     setPlaylists(PlaylistManager.getAll());
+    // };
 
-    useEffect(() => {
-        refreshPlaylists();
-    }, []);
+    // useEffect(() => {
+    //     refreshPlaylists();
+    // }, []);
 
-    const handleCreate = (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault();
         if (!newPlaylistName.trim()) return;
-        PlaylistManager.create(newPlaylistName);
-        refreshPlaylists();
-        setNewPlaylistName('');
-        setIsCreating(false);
+
+        try {
+            await axios.post(`${API_BASE}/api/playlists`, {
+                id: Date.now().toString(),
+                name: newPlaylistName
+            });
+            onPlaylistUpdate();
+            setNewPlaylistName('');
+            setIsCreating(false);
+        } catch (error) {
+            console.error("Create failed", error);
+            alert("Failed to create playlist");
+        }
     };
 
-    const handleDelete = (e, id) => {
+    const handleDelete = async (e, id) => {
         e.stopPropagation();
         if (confirm("Delete this playlist?")) {
-            PlaylistManager.delete(id);
-            refreshPlaylists();
-            if (selectedPlaylist?.id === id) setSelectedPlaylist(null);
+            try {
+                await axios.delete(`${API_BASE}/api/playlists/${id}`);
+                onPlaylistUpdate();
+                if (selectedPlaylist?.id === id) setSelectedPlaylist(null);
+            } catch (error) {
+                console.error("Delete failed", error);
+                alert("Failed to delete playlist");
+            }
         }
     };
 

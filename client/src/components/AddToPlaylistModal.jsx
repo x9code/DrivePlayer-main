@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { IoClose, IoAdd, IoMusicalNote } from 'react-icons/io5';
-import { PlaylistManager } from '../utils/PlaylistManager';
+import axios from 'axios';
 
-const AddToPlaylistModal = ({ song, onClose, onPlaylistUpdate }) => {
-    const [playlists, setPlaylists] = useState([]);
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+const AddToPlaylistModal = ({ song, onClose, onPlaylistUpdate, playlists }) => {
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [isCreating, setIsCreating] = useState(false);
 
-    useEffect(() => {
-        setPlaylists(PlaylistManager.getAll());
-    }, []);
+    // No local playlist state needed, use props
+    // useEffect(() => {
+    //     setPlaylists(PlaylistManager.getAll());
+    // }, []);
 
     const [toast, setToast] = useState(null); // { message, type }
 
@@ -20,26 +22,40 @@ const AddToPlaylistModal = ({ song, onClose, onPlaylistUpdate }) => {
         }
     }, [toast]);
 
-    const handleCreate = (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault();
         if (!newPlaylistName.trim()) return;
 
-        const newPlaylist = PlaylistManager.create(newPlaylistName);
-        setPlaylists(PlaylistManager.getAll()); // Refresh list
-        setNewPlaylistName('');
-        setIsCreating(false);
-        setToast({ message: `Playlist "${newPlaylistName}" created!`, type: 'success' });
+        try {
+            await axios.post(`${API_BASE}/api/playlists`, {
+                id: Date.now().toString(), // Simple ID generation
+                name: newPlaylistName
+            });
+            onPlaylistUpdate(); // Refresh parent list
+            setNewPlaylistName('');
+            setIsCreating(false);
+            setToast({ message: `Playlist "${newPlaylistName}" created!`, type: 'success' });
+        } catch (error) {
+            console.error(error);
+            setToast({ message: 'Failed to create playlist', type: 'error' });
+        }
     };
 
-    const handleSelect = (playlist) => {
-        PlaylistManager.addSong(playlist.id, song);
-        onPlaylistUpdate(); // Notify App to refresh if needed
-        setToast({ message: `Added to "${playlist.name}"`, type: 'success' });
+    const handleSelect = async (playlist) => {
+        try {
+            await axios.post(`${API_BASE}/api/playlists/${playlist.id}/songs`, {
+                fileId: song.id
+            });
+            setToast({ message: `Added to "${playlist.name}"`, type: 'success' });
 
-        // Delay closing slightly to show success
-        setTimeout(() => {
-            onClose();
-        }, 800);
+            // Delay closing slightly to show success
+            setTimeout(() => {
+                onClose();
+            }, 800);
+        } catch (error) {
+            console.error(error);
+            setToast({ message: 'Failed to add song', type: 'error' });
+        }
     };
 
     return (

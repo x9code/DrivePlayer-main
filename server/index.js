@@ -16,6 +16,8 @@ const LocalLibraryService = require('./services/libraryService'); // Rename to a
 const SyncService = require('./services/syncService');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 // Secret for JWT (In production, use .env)
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-this';
@@ -154,10 +156,12 @@ app.post('/api/auth/register', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
+    const normalizedEmail = email.toLowerCase();
+
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const stmt = db.prepare("INSERT INTO users (email, password) VALUES (?, ?)");
-        stmt.run(email, hashedPassword, function (err) {
+        stmt.run(normalizedEmail, hashedPassword, function (err) {
             if (err) {
                 if (err.message.includes('UNIQUE constraint failed')) {
                     return res.status(409).json({ error: "Email already exists" });
@@ -166,7 +170,7 @@ app.post('/api/auth/register', async (req, res) => {
             }
 
             // Auto-login after register
-            const user = { id: this.lastID, email };
+            const user = { id: this.lastID, email: normalizedEmail };
             const token = jwt.sign(user, JWT_SECRET, { expiresIn: '30d' }); // Long session
             res.status(201).json({ token, user });
         });
@@ -181,7 +185,9 @@ app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
-    db.get("SELECT * FROM users WHERE email = ?", [email], async (err, user) => {
+    const normalizedEmail = email.toLowerCase();
+
+    db.get("SELECT * FROM users WHERE email = ?", [normalizedEmail], async (err, user) => {
         if (err) return res.status(500).json({ error: "Database error" });
         if (!user) return res.status(400).json({ error: "User not found" });
 
@@ -192,6 +198,97 @@ app.post('/api/auth/login', async (req, res) => {
             } else {
                 res.status(401).json({ error: "Invalid credentials" });
             }
+        } catch (e) {
+            res.status(500).json({ error: "Server error" });
+        }
+    });
+});
+
+// Configure Nodemailer
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+    }
+});
+
+// Forgot Password
+app.post('/api/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email required" });
+
+    const normalizedEmail = email.toLowerCase();
+
+    // Check if user exists first
+    db.get("SELECT * FROM users WHERE email = ?", [normalizedEmail], (err, user) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        // Generate Token
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 3600000); // 1 Hour
+
+        const stmt = db.prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
+        stmt.run(normalizedEmail, token, expiresAt.toISOString(), function (err) {
+            if (err) return res.status(500).json({ error: "Failed to create reset token" });
+
+            // Send Email
+            // TODO: Configurable Frontend URL
+            const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+
+            const mailOptions = {
+                from: process.env.SMTP_USER, // Sender address
+                to: normalizedEmail,
+                subject: 'Password Reset Request',
+                text: `You requested a password reset. Click the link to reset your password: ${resetLink}`,
+                html: `<p>You requested a password reset.</p><p>Click the link below to reset your password:</p><a href="${resetLink}">${resetLink}</a><p>This link expires in 1 hour.</p>`
+            };
+
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error("Email error:", error);
+                    return res.status(500).json({ error: "Failed to send email" });
+                }
+                res.json({ success: true, message: "Reset link sent to email" });
+            });
+        });
+        stmt.finalize();
+    });
+});
+
+// Reset Password
+app.post('/api/auth/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) return res.status(400).json({ error: "Token and new password required" });
+
+    db.get("SELECT * FROM password_resets WHERE token = ?", [token], async (err, row) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (!row) return res.status(400).json({ error: "Invalid or expired token" });
+
+        const now = new Date();
+        const expiresAt = new Date(row.expires_at);
+
+        if (now > expiresAt) {
+            return res.status(400).json({ error: "Token expired" });
+        }
+
+        try {
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+            // Update User Password
+            const updateStmt = db.prepare("UPDATE users SET password = ? WHERE email = ?");
+            updateStmt.run(hashedPassword, row.email, function (err) {
+                if (err) return res.status(500).json({ error: "Failed to update password" });
+
+                // Delete Token (prevent reuse)
+                db.run("DELETE FROM password_resets WHERE token = ?", [token]);
+
+                res.json({ success: true, message: "Password updated successfully" });
+            });
+            updateStmt.finalize();
         } catch (e) {
             res.status(500).json({ error: "Server error" });
         }

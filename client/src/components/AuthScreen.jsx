@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { IoMusicalNotes, IoArrowForward, IoPersonAdd, IoLogIn, IoAlertCircle } from 'react-icons/io5';
+import { IoMusicalNotes, IoArrowForward, IoPersonAdd, IoLogIn, IoAlertCircle, IoEye, IoEyeOff } from 'react-icons/io5';
+import ForgotPasswordModal from './ForgotPasswordModal';
 
 const AuthScreen = () => {
     const { login, register } = useAuth();
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showForgotModal, setShowForgotModal] = useState(false);
+    const API_BASE = import.meta.env.VITE_API_URL || '';
 
     const [formData, setFormData] = useState({
         email: '',
@@ -14,7 +18,8 @@ const AuthScreen = () => {
     });
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const value = e.target.name === 'email' ? e.target.value.toLowerCase() : e.target.value;
+        setFormData({ ...formData, [e.target.name]: value });
         setError(null); // Clear error on type
     };
 
@@ -80,17 +85,39 @@ const AuthScreen = () => {
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 ml-1">Password</label>
-                            <input
-                                type="password"
-                                name="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
-                                placeholder="••••••••"
-                                required
-                                minLength={6}
-                            />
+                            <div className="relative">
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all pr-10"
+                                    placeholder="••••••••"
+                                    required
+                                    minLength={6}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors"
+                                >
+                                    {showPassword ? <IoEyeOff size={20} /> : <IoEye size={20} />}
+                                </button>
+                            </div>
                         </div>
+
+                        {/* Forgot Password Link */}
+                        {isLogin && (
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowForgotModal(true)}
+                                    className="text-xs text-zinc-400 hover:text-white transition-colors"
+                                >
+                                    Forgot Password?
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <button
@@ -126,6 +153,12 @@ const AuthScreen = () => {
                     </p>
                 </div>
             </div>
+
+            <ForgotPasswordModal
+                isOpen={showForgotModal}
+                onClose={() => setShowForgotModal(false)}
+                API_BASE={API_BASE}
+            />
         </div>
     );
 };

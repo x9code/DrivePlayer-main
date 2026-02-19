@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
 import { Analytics } from "@vercel/analytics/react"
-import axios from 'axios'
+import { BrowserRouter, useLocation } from 'react-router-dom'; // [NEW]
+import axios from 'axios';
 import Player from './components/Player'
 import SongList from './components/SongList'
 import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline } from 'react-icons/io5'
@@ -9,7 +10,6 @@ import AddToPlaylistModal from './components/AddToPlaylistModal'
 
 import LibraryModal from './components/LibraryModal'
 import Sidebar from './components/Sidebar' // [NEW]
-import { PlaylistManager } from './utils/PlaylistManager' // [NEW]
 import ConfirmModal from './components/ConfirmModal'
 import { AlbumGrid, ArtistGrid } from './components/LibraryViews'
 
@@ -18,6 +18,7 @@ import ProfileScreen from './components/ProfileScreen'; // [NEW]
 
 import { AuthProvider, useAuth } from './context/AuthContext'; // [NEW]
 import AuthScreen from './components/AuthScreen'; // [NEW]
+import ResetPasswordScreen from './components/ResetPasswordScreen'; // [NEW]
 
 // Environment variable for API URL (Production vs Dev)
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -1291,6 +1292,8 @@ function AppContent() {
             cleanTitle={cleanTitle}
             likedSongs={likedSongs}
             toggleLike={toggleLike}
+            playlists={playlists}
+            onPlaylistUpdate={refreshPlaylists}
           />
         )
       }
@@ -1299,6 +1302,7 @@ function AppContent() {
         songToAdd && (
           <AddToPlaylistModal
             song={songToAdd}
+            playlists={playlists}
             onClose={() => setSongToAdd(null)}
             onPlaylistUpdate={() => {
               refreshPlaylists();
@@ -1323,16 +1327,25 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppWrapper />
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppWrapper />
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
 function AppWrapper() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) return <div className="h-screen w-full bg-black flex items-center justify-center text-white">Loading...</div>;
+
+  // Allow reset password route without auth
+  if (location.pathname.startsWith('/reset-password')) {
+    return <ResetPasswordScreen />;
+  }
+
   if (!user) return <AuthScreen />;
 
   return <AppContent />;
