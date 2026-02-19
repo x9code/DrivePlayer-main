@@ -644,7 +644,6 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 title={displayMeta.title}
                                 duration={duration}
                                 isExpanded={isExpanded}
-                                showLyrics={showLyrics}
                             />
                         </div>
                     </div>
