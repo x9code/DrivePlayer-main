@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { IoPlay, IoPause, IoPlaySkipBack, IoPlaySkipForward, IoShuffle, IoRepeat, IoVolumeHigh, IoVolumeMute, IoChevronDown, IoList, IoHeart, IoHeartOutline, IoMusicalNotes, IoResize, IoExpand, IoMusicalNote, IoScan, IoClose, IoAddCircleOutline, IoInformationCircleOutline } from 'react-icons/io5';
+import { IoPlay, IoPause, IoPlaySkipBack, IoPlaySkipForward, IoShuffle, IoRepeat, IoVolumeHigh, IoVolumeMute, IoChevronDown, IoList, IoHeart, IoHeartOutline, IoMusicalNotes, IoResize, IoExpand, IoMusicalNote, IoAddCircleOutline, IoInformationCircleOutline } from 'react-icons/io5';
 import Lyrics from './Lyrics';
 
 // Use environment variable for API URL in production (Vercel), fall back to relative path (proxy) in dev
@@ -51,8 +51,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
         localStorage.setItem('driveplayer_lyrics_show', showLyrics);
     }, [showLyrics]);
 
-    // Idle Mode Logic (Now Manual Only)
-    const [isIdle, setIsIdle] = useState(false);
+
 
     // Audio Ref for Lyrics Sync on new song
     useEffect(() => {
@@ -182,7 +181,6 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     break;
                 case 'PageDown':
                     if (isExpanded) setIsExpanded(false);
-                    if (isIdle) setIsIdle(false); // Also exit idle
                     break;
                 case 'PageUp':
                     if (!isExpanded) setIsExpanded(true);
@@ -193,7 +191,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentSong, setIsPlaying, onNext, onPrev, isExpanded, isIdle]);
+    }, [currentSong, setIsPlaying, onNext, onPrev, isExpanded]);
 
 
 
@@ -260,13 +258,13 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
             >
 
                 {/* Liquid Glass Background */}
-                <div className={`absolute inset-0 overflow-hidden pointer-events-none -z-10 bg-black/80 transition-opacity duration-1000 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
+                <div className={`absolute inset-0 overflow-hidden pointer-events-none -z-10 bg-black transition-opacity duration-1000 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
                     {/* 1. Deep Ambient Blur (Liquid Base) */}
                     {!artError && (
                         <img
                             src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
                             alt=""
-                            className={`w-full h-full object-cover blur-[120px] opacity-30 saturate-150 animate-pulse-slower transition-transform duration-[20s] ease-in-out ${isIdle && showLyrics ? 'scale-[3]' : 'scale-150'}`}
+                            className="w-full h-full object-cover blur-[120px] opacity-30 saturate-150 animate-pulse-slower transition-transform duration-[20s] ease-in-out scale-150"
                         />
                     )}
                     {/* 2. Glass Shine Overlay */}
@@ -348,35 +346,15 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
 
                 {/* --- EXPANDED CONTENT --- */}
-                <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isIdle ? 'delay-0' : 'delay-100'} ${isIdle && showLyrics ? 'p-0' : 'p-8'} ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-95'}`}>
-
-                    {/* Exit Immersive Mode Button (Floating) */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setIsIdle(false); }}
-                        className={`absolute top-8 right-8 z-50 p-3 rounded-full bg-white/10 backdrop-blur-md text-white/50 hover:text-white hover:bg-white/20 transition-all duration-500 ${isIdle && showLyrics ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-90'}`}
-                        title="Exit Immersive Mode"
-                    >
-                        <IoClose size={24} />
-                    </button>
+                <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] delay-100 p-8 ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-95'}`}>
 
                     {/* Header */}
-                    <div className={`absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20 transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                    <div className="absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20">
                         <button onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }} className="glass-button w-10 h-10 rounded-full flex items-center justify-center hover:text-white">
                             <IoChevronDown size={24} />
                         </button>
 
                         <div className="flex gap-3">
-                            {/* Manual Focus/Immersive Button (Appears on Left) */}
-                            {showLyrics && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setIsIdle(true); }}
-                                    className="glass-button h-10 w-10 rounded-full flex items-center justify-center hover:text-white hover:bg-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500"
-                                    title="Enter Immersive Mode"
-                                >
-                                    <IoScan size={18} />
-                                </button>
-                            )}
-
                             {/* Lyrics Toggle */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); setShowLyrics(!showLyrics); setShowInfo(false); }}
@@ -399,88 +377,89 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         </div>
                     </div>
 
-                    {/* Main Content Container with Staggered Entry */}
-                    <div className={`flex flex-col items-center w-full ${isIdle && showLyrics ? 'max-w-6xl h-full justify-center' : 'max-w-md'} gap-8 z-10 transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
-                        {/* Artwork + Info Card Container */}
-                        <div className={`relative flex items-center justify-center ${isIdle && showLyrics ? 'w-full h-full' : ''}`}>
-                            {/* Info Card (Left of Album Art) */}
-                            <div
-                                className={`absolute right-full mr-4 top-0 bottom-0 w-72 z-30 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showInfo ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-8 pointer-events-none'}`}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <div className="h-full rounded-2xl bg-black/60 backdrop-blur-xl ring-1 ring-white/10 shadow-2xl overflow-hidden flex flex-col">
-                                    {/* Card Header */}
-                                    <div className="px-4 pt-4 pb-2 border-b border-white/5">
-                                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Song Info</h3>
-                                    </div>
-                                    {/* Card Body */}
-                                    <div className="flex-1 px-4 py-3 space-y-2.5">
-                                        {/* Title */}
-                                        <div>
-                                            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Title</span>
-                                            <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{displayMeta.title}</p>
+                    {/* Main Content — CSS Grid layout for smooth column animation */}
+                    <div
+                        className={`w-full h-full z-10 grid items-stretch transition-[grid-template-columns,opacity,transform] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
+                        style={{
+                            gridTemplateColumns: showLyrics ? '2fr 3fr' : '1fr 0fr',
+                            gap: showLyrics ? '2rem' : '0px',
+                            maxWidth: showLyrics ? '72rem' : '28rem',
+                            margin: '0 auto',
+                            transition: 'grid-template-columns 0.7s cubic-bezier(0.2,0.8,0.2,1), gap 0.7s cubic-bezier(0.2,0.8,0.2,1), max-width 0.7s cubic-bezier(0.2,0.8,0.2,1), opacity 0.7s cubic-bezier(0.2,0.8,0.2,1), transform 0.7s cubic-bezier(0.2,0.8,0.2,1)',
+                        }}
+                    >
+
+                        {/* LEFT COLUMN: Album Art + Controls */}
+                        <div className="flex flex-col items-center justify-center gap-6 min-w-0 will-change-transform">
+
+                            {/* Artwork + Info Card Container */}
+                            <div className="relative flex items-center justify-center">
+                                {/* Info Card (Left of Album Art) */}
+                                <div
+                                    className={`absolute right-full mr-4 top-0 bottom-0 w-72 z-30 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showInfo ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-8 pointer-events-none'}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div className="h-full rounded-2xl bg-black/60 backdrop-blur-xl ring-1 ring-white/10 shadow-2xl overflow-hidden flex flex-col">
+                                        <div className="px-4 pt-4 pb-2 border-b border-white/5">
+                                            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Song Info</h3>
                                         </div>
-                                        {/* Artist */}
-                                        <div>
-                                            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Artist</span>
-                                            <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{displayMeta.artist}</p>
-                                        </div>
-                                        {/* Album */}
-                                        {meta.album && (
+                                        <div className="flex-1 px-4 py-3 space-y-2.5">
                                             <div>
-                                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Album</span>
-                                                <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{meta.album}</p>
+                                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Title</span>
+                                                <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{displayMeta.title}</p>
                                             </div>
-                                        )}
-                                        {/* Duration + Codec row */}
-                                        <div className="flex gap-4">
-                                            {duration > 0 && (
-                                                <div className="flex-1">
-                                                    <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Duration</span>
-                                                    <p className="text-[13px] text-zinc-200 font-medium">{formatTime(duration)}</p>
+                                            <div>
+                                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Artist</span>
+                                                <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{displayMeta.artist}</p>
+                                            </div>
+                                            {meta.album && (
+                                                <div>
+                                                    <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Album</span>
+                                                    <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{meta.album}</p>
                                                 </div>
                                             )}
-                                            {meta.codec && (
-                                                <div className="flex-1">
-                                                    <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Codec</span>
-                                                    <p className="text-[13px] text-zinc-200 font-medium">{meta.codec}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {/* Sample Rate + Bit Depth row */}
-                                        <div className="flex gap-4">
-                                            {meta.sampleRate && (
-                                                <div className="flex-1">
-                                                    <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Sample Rate</span>
-                                                    <p className="text-[13px] text-zinc-200 font-medium">{(meta.sampleRate / 1000).toFixed(1)} kHz</p>
-                                                </div>
-                                            )}
-                                            {meta.bitsPerSample && (
-                                                <div className="flex-1">
-                                                    <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Bit Depth</span>
-                                                    <p className="text-[13px] text-zinc-200 font-medium">{meta.bitsPerSample}-bit</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {/* File + Size row */}
-                                        <div className="pt-1 border-t border-white/5">
-                                            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">File</span>
-                                            <p className="text-[11px] text-zinc-400 font-medium leading-tight break-all">{meta.filename || currentSong?.name}</p>
-                                            {currentSong?.size && (
-                                                <p className="text-[11px] text-zinc-500 mt-0.5">{(currentSong.size / (1024 * 1024)).toFixed(1)} MB</p>
-                                            )}
+                                            <div className="flex gap-4">
+                                                {duration > 0 && (
+                                                    <div className="flex-1">
+                                                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Duration</span>
+                                                        <p className="text-[13px] text-zinc-200 font-medium">{formatTime(duration)}</p>
+                                                    </div>
+                                                )}
+                                                {meta.codec && (
+                                                    <div className="flex-1">
+                                                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Codec</span>
+                                                        <p className="text-[13px] text-zinc-200 font-medium">{meta.codec}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-4">
+                                                {meta.sampleRate && (
+                                                    <div className="flex-1">
+                                                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Sample Rate</span>
+                                                        <p className="text-[13px] text-zinc-200 font-medium">{(meta.sampleRate / 1000).toFixed(1)} kHz</p>
+                                                    </div>
+                                                )}
+                                                {meta.bitsPerSample && (
+                                                    <div className="flex-1">
+                                                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Bit Depth</span>
+                                                        <p className="text-[13px] text-zinc-200 font-medium">{meta.bitsPerSample}-bit</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="pt-1 border-t border-white/5">
+                                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">File</span>
+                                                <p className="text-[11px] text-zinc-400 font-medium leading-tight break-all">{meta.filename || currentSong?.name}</p>
+                                                {currentSong?.size && (
+                                                    <p className="text-[11px] text-zinc-500 mt-0.5">{(currentSong.size / (1024 * 1024)).toFixed(1)} MB</p>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* 3D Flip Container */}
-                            <div className={`relative group transition-all duration-1000 ${isIdle && showLyrics ? 'w-full h-full' : 'perspective-1000 w-72 h-72 md:w-96 md:h-96'}`}>
-                                <div
-                                    className={`relative w-full h-full transition-transform duration-700 ${isIdle && showLyrics ? '' : 'transform-style-3d'} ${showLyrics && !(isIdle && showLyrics) ? 'rotate-y-180' : ''}`}
-                                >
-                                    {/* Front Face: Artwork */}
-                                    <div className={`absolute inset-0 w-full h-full backface-hidden rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate ${isIdle && showLyrics ? 'hidden' : ''}`}>
+                                {/* Album Art */}
+                                <div className={`relative group transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showLyrics ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'}`}>
+                                    <div className="relative w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate">
                                         {/* Like Button Overlay (Top Right) */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
@@ -519,163 +498,154 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            </div>
 
-                                    {/* Back Face: Lyrics */}
+                            {/* Text */}
+                            <div className={`text-center space-y-1 transition-all duration-700 ${showLyrics ? 'max-w-[280px]' : ''}`}>
+                                <div className="flex items-center justify-center gap-3">
+                                    <h2 className={`font-bold text-white truncate transition-all duration-700 ${showLyrics ? 'text-xl max-w-[250px]' : 'text-3xl max-w-xs'}`}>{displayMeta.title}</h2>
+                                </div>
+                                <p className={`text-zinc-400 font-medium transition-all duration-700 ${showLyrics ? 'text-sm' : 'text-lg'}`}>{displayMeta.artist}</p>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="w-full space-y-2 group">
+                                <div className="w-full h-1.5 bg-white/20 backdrop-blur-sm rounded-full cursor-pointer relative overflow-visible shadow-inner">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max={duration || 0}
+                                        value={progress || 0}
+                                        onChange={handleSeek}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                    />
                                     <div
-                                        className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden bg-transparent cursor-default ${isIdle && showLyrics ? '' : 'backface-hidden rotate-y-180'}`}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowLyrics(false);
-                                        }}
+                                        className="h-full bg-primary rounded-full relative shadow-[0_0_10px_rgba(var(--theme-color),0.5)]"
+                                        style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }}
                                     >
-                                        <Lyrics
-                                            audioRef={audioRef}
-                                            artist={displayMeta.artist}
-                                            title={displayMeta.title}
-                                            duration={duration}
-                                            isExpanded={isExpanded}
-                                            isIdle={isIdle}
-                                        />
+                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity scale-0 group-hover:scale-100"></div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
+                                <div className="flex justify-between items-center text-xs font-medium text-zinc-500 font-mono">
+                                    <span>{formatTime(progress)}</span>
 
-                        {/* Text */}
-                        <div className={`text-center space-y-1 transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0' : 'opacity-100'}`}>
-                            <div className="flex items-center justify-center gap-3">
-                                <h2 className="text-3xl font-bold text-white truncate max-w-xs">{displayMeta.title}</h2>
-                            </div>
-                            <p className="text-lg text-zinc-400 font-medium">{displayMeta.artist}</p>
-                        </div>
-
-
-                        {/* Progress Bar */}
-                        <div className={`w-full space-y-2 group transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0' : 'opacity-100'}`}>
-                            <div className="w-full h-1.5 bg-white/20 backdrop-blur-sm rounded-full cursor-pointer relative overflow-visible shadow-inner">
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max={duration || 0}
-                                    value={progress || 0}
-                                    onChange={handleSeek}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                />
-                                <div
-                                    className="h-full bg-primary rounded-full relative shadow-[0_0_10px_rgba(var(--theme-color),0.5)]"
-                                    style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }}
-                                >
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity scale-0 group-hover:scale-100"></div>
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center text-xs font-medium text-zinc-500 font-mono">
-                                <span>{formatTime(progress)}</span>
-
-                                {/* Apple Music Lossless Badge (Exact Match) */}
-                                {meta.filename && meta.filename.toLowerCase().endsWith('.flac') && (
-                                    <>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setIsLosslessModalOpen(true);
-                                            }}
-                                            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-500/15 border border-white/5 shadow-sm opacity-80 hover:opacity-100 hover:bg-zinc-500/25 transition-all cursor-pointer"
-                                            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif' }}
-                                        >
-                                            <svg width="11" height="8" viewBox="0 0 22 11" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-zinc-300">
-                                                <path d="M1 5.5C1 5.5 3 1 5.5 1C8 1 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <path d="M6.5 5.5C6.5 5.5 8.5 1 11 1C13.5 1 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <path d="M12 5.5C12 5.5 14 1 16.5 1C19 1 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <path d="M1 5.5C1 5.5 3 10 5.5 10C8 10 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <path d="M6.5 5.5C6.5 5.5 8.5 10 11 10C13.5 10 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <path d="M12 5.5C12 5.5 14 10 16.5 10C19 10 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                            <span className="text-[9px] font-semibold text-zinc-200 tracking-normal ml-0.5">
-                                                {(meta.sampleRate > 48000) ? 'Hi-Res Lossless' : 'Lossless'}
-                                            </span>
-                                        </button>
-
-                                        {/* Lossless Details Modal */}
-                                        {isLosslessModalOpen && (
-                                            <div
-                                                className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                                    {/* Apple Music Lossless Badge */}
+                                    {meta.filename && meta.filename.toLowerCase().endsWith('.flac') && (
+                                        <>
+                                            <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setIsLosslessModalOpen(false);
+                                                    setIsLosslessModalOpen(true);
                                                 }}
+                                                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-500/15 border border-white/5 shadow-sm opacity-80 hover:opacity-100 hover:bg-zinc-500/25 transition-all cursor-pointer"
+                                                style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif' }}
                                             >
+                                                <svg width="11" height="8" viewBox="0 0 22 11" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-zinc-300">
+                                                    <path d="M1 5.5C1 5.5 3 1 5.5 1C8 1 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                    <path d="M6.5 5.5C6.5 5.5 8.5 1 11 1C13.5 1 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                    <path d="M12 5.5C12 5.5 14 1 16.5 1C19 1 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                    <path d="M1 5.5C1 5.5 3 10 5.5 10C8 10 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                    <path d="M6.5 5.5C6.5 5.5 8.5 10 11 10C13.5 10 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                    <path d="M12 5.5C12 5.5 14 10 16.5 10C19 10 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                                <span className="text-[9px] font-semibold text-zinc-200 tracking-normal ml-0.5">
+                                                    {(meta.sampleRate > 48000) ? 'Hi-Res Lossless' : 'Lossless'}
+                                                </span>
+                                            </button>
+
+                                            {/* Lossless Details Modal */}
+                                            {isLosslessModalOpen && (
                                                 <div
-                                                    className="w-[90%] max-w-[320px] bg-black/40 backdrop-blur-xl border border-white/10 rounded-[18px] overflow-hidden shadow-2xl flex flex-col animate-scale-in origin-center"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif' }}
+                                                    className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setIsLosslessModalOpen(false);
+                                                    }}
                                                 >
-                                                    <div className="flex flex-col items-center justify-center pt-8 pb-6 px-6 space-y-4">
-                                                        {/* Large Wave Icon */}
-                                                        <div className="w-16 h-12 text-white flex items-center justify-center mb-1">
-                                                            <svg width="68" height="42" viewBox="0 0 22 11" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                                                                <path d="M1 5.5C1 5.5 3 1 5.5 1C8 1 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                                                                <path d="M6.5 5.5C6.5 5.5 8.5 1 11 1C13.5 1 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                                                                <path d="M12 5.5C12 5.5 14 1 16.5 1C19 1 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                                                                <path d="M1 5.5C1 5.5 3 10 5.5 10C8 10 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                                                                <path d="M6.5 5.5C6.5 5.5 8.5 10 11 10C13.5 10 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                                                                <path d="M12 5.5C12 5.5 14 10 16.5 10C19 10 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                                                            </svg>
+                                                    <div
+                                                        className="w-[90%] max-w-[320px] bg-black/40 backdrop-blur-xl border border-white/10 rounded-[18px] overflow-hidden shadow-2xl flex flex-col animate-scale-in origin-center"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif' }}
+                                                    >
+                                                        <div className="flex flex-col items-center justify-center pt-8 pb-6 px-6 space-y-4">
+                                                            <div className="w-16 h-12 text-white flex items-center justify-center mb-1">
+                                                                <svg width="68" height="42" viewBox="0 0 22 11" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                                                                    <path d="M1 5.5C1 5.5 3 1 5.5 1C8 1 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                    <path d="M6.5 5.5C6.5 5.5 8.5 1 11 1C13.5 1 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                    <path d="M12 5.5C12 5.5 14 1 16.5 1C19 1 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                    <path d="M1 5.5C1 5.5 3 10 5.5 10C8 10 10 5.5 10 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                    <path d="M6.5 5.5C6.5 5.5 8.5 10 11 10C13.5 10 15.5 5.5 15.5 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                    <path d="M12 5.5C12 5.5 14 10 16.5 10C19 10 21 5.5 21 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                </svg>
+                                                            </div>
+                                                            <div className="text-center space-y-1">
+                                                                <h3 className="text-[17px] font-bold text-white">
+                                                                    {(meta.sampleRate > 48000) ? 'Hi-Res Lossless' : 'Lossless'}
+                                                                </h3>
+                                                                <p className="text-[13px] text-zinc-400 font-medium">
+                                                                    {meta.bitsPerSample || 16}-bit/{((meta.sampleRate || 44100) / 1000).toFixed(1)} kHz {meta.codec || 'FLAC'}
+                                                                </p>
+                                                            </div>
                                                         </div>
-
-                                                        <div className="text-center space-y-1">
-                                                            <h3 className="text-[17px] font-bold text-white">
-                                                                {(meta.sampleRate > 48000) ? 'Hi-Res Lossless' : 'Lossless'}
-                                                            </h3>
-                                                            <p className="text-[13px] text-zinc-400 font-medium">
-                                                                {meta.bitsPerSample || 16}-bit/{((meta.sampleRate || 44100) / 1000).toFixed(1)} kHz {meta.codec || 'FLAC'}
-                                                            </p>
+                                                        <div className="grid grid-cols-1 border-t border-white/10">
+                                                            <button
+                                                                onClick={() => setIsLosslessModalOpen(false)}
+                                                                className="h-[44px] flex items-center justify-center text-[17px] font-semibold text-primary hover:bg-white/5 active:bg-white/10 transition-colors"
+                                                            >
+                                                                OK
+                                                            </button>
                                                         </div>
-                                                    </div>
-
-                                                    {/* Footer Buttons */}
-                                                    <div className="grid grid-cols-1 border-t border-white/10">
-                                                        <button
-                                                            onClick={() => setIsLosslessModalOpen(false)}
-                                                            className="h-[44px] flex items-center justify-center text-[17px] font-semibold text-primary hover:bg-white/5 active:bg-white/10 transition-colors"
-                                                        >
-                                                            OK
-                                                        </button>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
+                                            )}
+                                        </>
+                                    )}
 
-                                <span>{formatTime(duration)}</span>
+                                    <span>{formatTime(duration)}</span>
+                                </div>
+                            </div>
+
+                            {/* Main Controls */}
+                            <div className={`flex items-center justify-between w-full transition-all duration-700 ${showLyrics ? 'max-w-[280px]' : 'max-w-xs'} px-4`}>
+                                <button onClick={(e) => { e.stopPropagation(); onShuffleToggle(); }} className={`transition-colors ${isShuffle ? 'text-primary' : 'text-zinc-500 hover:text-white'}`}>
+                                    <IoShuffle size={showLyrics ? 20 : 24} />
+                                </button>
+
+                                <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="text-white hover:scale-110 transition-transform">
+                                    <IoPlaySkipBack size={showLyrics ? 26 : 32} />
+                                </button>
+
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); togglePlay(e); }}
+                                    className={`bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,255,255,0.3)] ${showLyrics ? 'w-16 h-16' : 'w-20 h-20'}`}
+                                >
+                                    {isPlaying ? <IoPause size={showLyrics ? 26 : 32} /> : <IoPlay size={showLyrics ? 28 : 36} className="pl-1" />}
+                                </button>
+
+                                <button onClick={(e) => { e.stopPropagation(); onNext(false); }} className="text-white hover:scale-110 transition-transform">
+                                    <IoPlaySkipForward size={showLyrics ? 26 : 32} />
+                                </button>
+
+                                <button onClick={(e) => { e.stopPropagation(); onRepeatToggle(); }} className={`transition-colors ${repeatMode > 0 ? 'text-primary' : 'text-zinc-500 hover:text-white'} relative`}>
+                                    <IoRepeat size={showLyrics ? 20 : 24} />
+                                    {repeatMode === 2 && <span className="absolute -top-1 -right-1 text-[8px] bg-primary text-black px-1 rounded-full font-bold">1</span>}
+                                </button>
                             </div>
                         </div>
 
-                        {/* Main Controls */}
-                        <div className={`flex items-center justify-between w-full max-w-xs px-4 transition-opacity duration-1000 ${isIdle && showLyrics ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                            <button onClick={(e) => { e.stopPropagation(); onShuffleToggle(); }} className={`transition-colors ${isShuffle ? 'text-primary' : 'text-zinc-500 hover:text-white'}`}>
-                                <IoShuffle size={24} />
-                            </button>
-
-                            <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="text-white hover:scale-110 transition-transform">
-                                <IoPlaySkipBack size={32} />
-                            </button>
-
-                            <button
-                                onClick={(e) => { e.stopPropagation(); togglePlay(e); }}
-                                className="w-20 h-20 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.3)]"
-                            >
-                                {isPlaying ? <IoPause size={32} /> : <IoPlay size={36} className="pl-1" />}
-                            </button>
-
-                            <button onClick={(e) => { e.stopPropagation(); onNext(false); }} className="text-white hover:scale-110 transition-transform">
-                                <IoPlaySkipForward size={32} />
-                            </button>
-
-                            <button onClick={(e) => { e.stopPropagation(); onRepeatToggle(); }} className={`transition-colors ${repeatMode > 0 ? 'text-primary' : 'text-zinc-500 hover:text-white'} relative`}>
-                                <IoRepeat size={24} />
-                                {repeatMode === 2 && <span className="absolute -top-1 -right-1 text-[8px] bg-primary text-black px-1 rounded-full font-bold">1</span>}
-                            </button>
+                        {/* RIGHT COLUMN: Lyrics Panel — always rendered, animated via opacity+transform */}
+                        <div
+                            className={`h-full min-h-0 rounded-2xl overflow-hidden transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-[opacity,transform] ${showLyrics ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'}`}
+                        >
+                            <Lyrics
+                                audioRef={audioRef}
+                                artist={displayMeta.artist}
+                                title={displayMeta.title}
+                                duration={duration}
+                                isExpanded={isExpanded}
+                                showLyrics={showLyrics}
+                            />
                         </div>
                     </div>
                 </div>
