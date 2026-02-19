@@ -58,7 +58,7 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
         el.setAttribute('query', `${title} ${artist}`);
         if (duration) el.setAttribute('song-duration', String(Math.round(duration * 1000)));
         el.setAttribute('current-time', '0');
-        el.setAttribute('highlight-color', '#ffffff');
+        el.setAttribute('highlight-color', 'transparent');
         el.setAttribute('hover-background-color', 'rgba(255,255,255,0.06)');
         el.setAttribute('font-family', "'Inter', system-ui, -apple-system, sans-serif");
         el.setAttribute('autoscroll', '');
@@ -70,9 +70,9 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
         el.style.display = 'block';
         el.style.fontSize = '1.5rem';
         el.style.fontWeight = '700';
-        el.style.setProperty('--am-lyrics-highlight-color', '#ffffff');
+        el.style.setProperty('--am-lyrics-highlight-color', 'transparent');
         el.style.setProperty('--hover-background-color', 'rgba(255,255,255,0.06)');
-        el.style.setProperty('--highlight-color', '#ffffff');
+        el.style.setProperty('--highlight-color', 'transparent');
 
         // Inject custom styles into shadow DOM once it's ready
         const injectStyles = () => {
