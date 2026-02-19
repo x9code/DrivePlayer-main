@@ -58,10 +58,14 @@ const AuthScreen = () => {
                     <p className="text-zinc-400 mt-2 text-sm">
                         {isLogin ? 'Welcome back! Login to continue.' : 'Join to start streaming your music.'}
                     </p>
+                    <p className="text-xs text-zinc-600 mt-1">Build v3 (Debug Active)</p>
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={(e) => {
+                    alert('Submit clicked'); // Debug Interaction
+                    handleSubmit(e);
+                }} className="space-y-5">
 
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-3 text-red-200 text-sm animate-in fade-in slide-in-from-top-2">
