@@ -249,7 +249,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 style={{
                     willChange: 'bottom, width, height, border-radius',
                     background: isExpanded
-                        ? `radial-gradient(circle at 50% 30%, rgba(${themeColor || '80, 80, 80'}, 0.25), rgba(0, 0, 0, 0.95))`
+                        ? '#000000'
                         : undefined,
                     boxShadow: !isExpanded
                         ? `0 20px 50px rgba(0,0,0,0.5), 0 0 30px rgba(${themeColor || '255,255,255'}, 0.25)`
