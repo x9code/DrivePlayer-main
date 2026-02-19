@@ -29,8 +29,8 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors({
     origin: '*', // Allow Vercel/Render/Localhost
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Range']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Range', 'Authorization']
 }));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // [NEW] Serve Static Files

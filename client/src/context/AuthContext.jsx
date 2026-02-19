@@ -49,17 +49,13 @@ export const AuthProvider = ({ children }) => {
             // Validation: Detect HTML response (SPA Fallback)
             const contentType = res.headers['content-type'];
             if (contentType && contentType.includes('text/html')) {
-                const msg = `Invalid server response (HTML). API_BASE used: "${API_BASE}". Check VITE_API_URL.`;
-                alert(msg); // Force alert
-                throw new Error(msg);
+                throw new Error('Server returned HTML instead of JSON. Check VITE_API_URL configuration.');
             }
 
             // Validation: Check for token/user
             if (!res.data || !res.data.token || !res.data.user) {
                 console.error("Login Response Invalid:", res.data);
-                const msg = "Invalid server response (Missing token/user). See console.";
-                alert(msg);
-                throw new Error(msg);
+                throw new Error("Invalid server response (Missing token/user)");
             }
 
             const { token, user } = res.data;
@@ -69,9 +65,7 @@ export const AuthProvider = ({ children }) => {
             return { success: true };
         } catch (err) {
             console.error("Login Error:", err);
-            const msg = err.response?.data?.error || err.message || "Login failed";
-            alert(`Login Failed: ${msg}\nAPI Base: ${API_BASE}`); // Force details
-            return { success: false, error: msg };
+            return { success: false, error: err.response?.data?.error || err.message || "Login failed" };
         }
     };
 
@@ -82,7 +76,7 @@ export const AuthProvider = ({ children }) => {
             // Validation: Detect HTML response (SPA Fallback)
             const contentType = res.headers['content-type'];
             if (contentType && contentType.includes('text/html')) {
-                throw new Error(`Invalid server response (HTML). Likely missing API_URL in prod. API_BASE is: "${API_BASE}"`);
+                throw new Error('Server returned HTML instead of JSON. Check VITE_API_URL configuration.');
             }
 
             // Validation: Check for token/user
