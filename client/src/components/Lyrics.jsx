@@ -58,7 +58,7 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
         el.setAttribute('query', `${title} ${artist}`);
         if (duration) el.setAttribute('song-duration', String(Math.round(duration * 1000)));
         el.setAttribute('current-time', '0');
-        el.setAttribute('highlight-color', 'transparent');
+        el.setAttribute('highlight-color', '#ffffff');
         el.setAttribute('hover-background-color', 'rgba(255,255,255,0.06)');
         el.setAttribute('font-family', "'Inter', system-ui, -apple-system, sans-serif");
         el.setAttribute('autoscroll', '');
@@ -70,9 +70,9 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
         el.style.display = 'block';
         el.style.fontSize = '1.5rem';
         el.style.fontWeight = '700';
-        el.style.setProperty('--am-lyrics-highlight-color', 'transparent');
+        el.style.setProperty('--am-lyrics-highlight-color', '#ffffff');
         el.style.setProperty('--hover-background-color', 'rgba(255,255,255,0.06)');
-        el.style.setProperty('--highlight-color', 'transparent');
+        el.style.setProperty('--highlight-color', '#ffffff');
 
         // Inject custom styles into shadow DOM once it's ready
         const injectStyles = () => {
@@ -104,6 +104,12 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
                 .lyrics-line.active {
                     opacity: 1 !important;
                     color: #ffffff !important;
+                }
+                
+                /* FIX: Remove gray background box ONLY for line-synced lyrics (no syllables) */
+                .lyrics-line.active:not(:has(.lyrics-syllable)) {
+                    background: none !important;
+                    background-color: transparent !important;
                 }
 
                 /* Sung syllables: bright white */
