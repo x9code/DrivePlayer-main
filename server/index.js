@@ -737,10 +737,14 @@ app.get('/api/metadata/:fileId', async (req, res) => {
             title: metadata.title,
             artist: metadata.artist,
             album: metadata.album,
+            year: metadata.year,
+            genre: metadata.genre,
+            track: metadata.track,
             duration: metadata.duration,
             filename: metadata.filename,
             // Tech Details
             sampleRate: metadata.sampleRate,
+            bitrate: metadata.bitrate,
             bitsPerSample: metadata.bitsPerSample,
             codec: metadata.codec
         });

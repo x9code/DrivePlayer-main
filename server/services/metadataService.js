@@ -440,6 +440,10 @@ class MetadataService {
         const album = sanitizeString(common.album)
             || "Unknown Album";
 
+        const year = common.year || (common.date ? String(common.date).substring(0, 4) : null);
+        const genre = common.genre && common.genre.length > 0 ? common.genre.join(', ') : null;
+        const track = common.track && common.track.no ? common.track.no : null;
+
         const duration = sanitizeDuration(format.duration || 0);
 
         // Check if artwork exists
@@ -449,6 +453,9 @@ class MetadataService {
             title,
             artist,
             album,
+            year,
+            genre,
+            track,
             duration,
             artwork: hasArtwork,
             picture: hasArtwork ? null : null, // We'll populate this via ArtService or Drive Thumbnail

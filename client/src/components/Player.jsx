@@ -396,111 +396,187 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         {/* LEFT COLUMN: Album Art + Controls */}
                         <div className="flex flex-col items-center justify-center gap-6 min-w-0 will-change-transform">
 
-                            {/* Artwork + Info Card Container */}
+                            {/* Artwork Container */}
                             <div className="relative flex items-center justify-center">
-                                {/* Info Card (Left of Album Art) */}
-                                <div
-                                    className={`absolute right-full mr-4 top-0 bottom-0 w-72 z-30 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showInfo ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-8 pointer-events-none'}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <div className="h-full rounded-2xl bg-black/60 backdrop-blur-xl ring-1 ring-white/10 shadow-2xl overflow-hidden flex flex-col">
-                                        <div className="px-4 pt-4 pb-2 border-b border-white/5">
-                                            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Song Info</h3>
-                                        </div>
-                                        <div className="flex-1 px-4 py-3 space-y-2.5">
-                                            <div>
-                                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Title</span>
-                                                <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{displayMeta.title}</p>
-                                            </div>
-                                            <div>
-                                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Artist</span>
-                                                <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{displayMeta.artist}</p>
-                                            </div>
-                                            {meta.album && (
-                                                <div>
-                                                    <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Album</span>
-                                                    <p className="text-[13px] text-zinc-200 font-medium leading-tight truncate">{meta.album}</p>
+
+                                {/* Album Art Container with Perspective */}
+                                <div className={`relative group transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showLyrics ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'}`} style={{ perspective: '1200px' }}>
+
+                                    {/* 3D Flipper Layer */}
+                                    <div
+                                        className="w-full h-full relative duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-transform"
+                                        style={{ transformStyle: 'preserve-3d', transform: showInfo ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+                                    >
+                                        {/* =======================
+                                            FRONT FACE (Album Art)
+                                            ======================= */}
+                                        <div
+                                            className="absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10"
+                                            style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+                                        >
+                                            {/* Like Button Overlay (Top Right) */}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
+                                                className={`absolute top-4 right-4 z-40 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg
+                                                    ${isLiked
+                                                        ? 'bg-black/30 text-primary shadow-primary/20 scale-105'
+                                                        : 'bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105'}
+                                                `}
+                                            >
+                                                {isLiked ? <IoHeart size={22} /> : <IoHeartOutline size={22} />}
+                                            </button>
+
+                                            {/* Info Button Overlay (Bottom Left) */}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setShowInfo(true); }}
+                                                className={`absolute bottom-4 left-4 z-40 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg bg-black/30 text-white/70 hover:bg-black/50 hover:text-white hover:scale-105`}
+                                                title="Song Info"
+                                            >
+                                                <IoInformationCircleOutline size={22} />
+                                            </button>
+
+                                            {!artError ? (
+                                                <img
+                                                    src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
+                                                    alt="Art"
+                                                    className="w-full h-full object-cover"
+                                                    onError={() => setArtError(true)}
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-zinc-900">
+                                                    <IoMusicalNotes size={64} />
                                                 </div>
                                             )}
-                                            <div className="flex gap-4">
-                                                {duration > 0 && (
-                                                    <div className="flex-1">
-                                                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Duration</span>
-                                                        <p className="text-[13px] text-zinc-200 font-medium">{formatTime(duration)}</p>
-                                                    </div>
-                                                )}
-                                                {meta.codec && (
-                                                    <div className="flex-1">
-                                                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Codec</span>
-                                                        <p className="text-[13px] text-zinc-200 font-medium">{meta.codec}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-4">
-                                                {meta.sampleRate && (
-                                                    <div className="flex-1">
-                                                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Sample Rate</span>
-                                                        <p className="text-[13px] text-zinc-200 font-medium">{(meta.sampleRate / 1000).toFixed(1)} kHz</p>
-                                                    </div>
-                                                )}
-                                                {meta.bitsPerSample && (
-                                                    <div className="flex-1">
-                                                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Bit Depth</span>
-                                                        <p className="text-[13px] text-zinc-200 font-medium">{meta.bitsPerSample}-bit</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="pt-1 border-t border-white/5">
-                                                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">File</span>
-                                                <p className="text-[11px] text-zinc-400 font-medium leading-tight break-all">{meta.filename || currentSong?.name}</p>
-                                                {currentSong?.size && (
-                                                    <p className="text-[11px] text-zinc-500 mt-0.5">{(currentSong.size / (1024 * 1024)).toFixed(1)} MB</p>
-                                                )}
-                                            </div>
                                         </div>
-                                    </div>
-                                </div>
 
-                                {/* Album Art */}
-                                <div className={`relative group transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showLyrics ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'}`}>
-                                    <div className="relative w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate">
-                                        {/* Like Button Overlay (Top Right) */}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
-                                            className={`absolute top-4 right-4 z-20 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg
-                                                ${isLiked
-                                                    ? 'bg-black/30 text-primary shadow-primary/20 scale-105'
-                                                    : 'bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105'}
-                                            `}
+                                        {/* =======================
+                                            BACK FACE (Song Info)
+                                            ======================= */}
+                                        <div
+                                            className="absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] ring-1 ring-white/10 overflow-hidden flex flex-col pointer-events-auto"
+                                            style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                                            onClick={(e) => e.stopPropagation()}
                                         >
-                                            {isLiked ? <IoHeart size={22} /> : <IoHeartOutline size={22} />}
-                                        </button>
-
-                                        {/* Info Button Overlay (Bottom Left) */}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setShowInfo(!showInfo); if (!showInfo) setShowLyrics(false); }}
-                                            className={`absolute bottom-4 left-4 z-20 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg
-                                                ${showInfo
-                                                    ? 'bg-black/30 text-primary shadow-primary/20 scale-105'
-                                                    : 'bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105'}
-                                            `}
-                                            title="Song Info"
-                                        >
-                                            <IoInformationCircleOutline size={22} />
-                                        </button>
-
-                                        {!artError ? (
-                                            <img
-                                                src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
-                                                alt="Art"
-                                                className="w-full h-full object-cover transition-transform duration-700"
-                                                onError={() => setArtError(true)}
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-zinc-900">
-                                                <IoMusicalNotes size={64} />
+                                            {/* Gradient Background */}
+                                            <div className="absolute inset-0 -z-10 bg-black pointer-events-none">
+                                                {!artError && (
+                                                    <img
+                                                        src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
+                                                        alt=""
+                                                        className="w-full h-full object-cover blur-3xl opacity-60 saturate-150 scale-125"
+                                                    />
+                                                )}
+                                                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/90"></div>
                                             </div>
-                                        )}
+
+                                            {/* Header: Title and Like button */}
+                                            <div className="relative z-10 flex items-center justify-between px-6 py-3 shrink-0 border-b border-white/10">
+                                                <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-widest">Song Info</h3>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
+                                                    className={`p-2 rounded-full transition-all duration-300 shadow-lg
+                                                        ${isLiked
+                                                            ? 'bg-black/40 text-primary shadow-primary/20 scale-105'
+                                                            : 'bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105'}
+                                                    `}
+                                                >
+                                                    {isLiked ? <IoHeart size={18} /> : <IoHeartOutline size={18} />}
+                                                </button>
+                                            </div>
+
+                                            {/* Content body */}
+                                            <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto pb-16 text-left" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                                <div>
+                                                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Title</span>
+                                                    <p className="text-[15px] text-zinc-100 font-semibold leading-tight">{displayMeta.title}</p>
+                                                </div>
+
+                                                <div className="flex gap-4">
+                                                    <div className="flex-[2]">
+                                                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Artist</span>
+                                                        <p className="text-[15px] text-zinc-100 font-semibold leading-tight truncate">{displayMeta.artist}</p>
+                                                    </div>
+                                                    {meta.year && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Year</span>
+                                                            <p className="text-[15px] text-zinc-100 font-semibold leading-tight">{meta.year}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex gap-4">
+                                                    {meta.album && (
+                                                        <div className="flex-[2] min-w-0">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Album</span>
+                                                            <p className="text-[15px] text-zinc-100 font-semibold leading-tight truncate">{meta.album}</p>
+                                                        </div>
+                                                    )}
+                                                    {meta.track && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Track</span>
+                                                            <p className="text-[15px] text-zinc-100 font-semibold leading-tight">{meta.track}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {meta.genre && (
+                                                    <div>
+                                                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Genre</span>
+                                                        <p className="text-[14px] text-zinc-100 font-semibold leading-tight truncate">{meta.genre}</p>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex gap-4">
+                                                    {duration > 0 && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Duration</span>
+                                                            <p className="text-[14px] text-zinc-100 font-semibold">{formatTime(duration)}</p>
+                                                        </div>
+                                                    )}
+                                                    {meta.codec && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Codec</span>
+                                                            <p className="text-[14px] text-zinc-100 font-semibold uppercase">{meta.codec}</p>
+                                                        </div>
+                                                    )}
+                                                    {meta.bitrate && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Bitrate</span>
+                                                            <p className="text-[14px] text-zinc-100 font-semibold">{Math.round(meta.bitrate / 1000)} kbps</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex gap-4">
+                                                    {meta.sampleRate && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Sample</span>
+                                                            <p className="text-[14px] text-zinc-100 font-semibold">{(meta.sampleRate / 1000).toFixed(1)} kHz</p>
+                                                        </div>
+                                                    )}
+                                                    {meta.bitsPerSample && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Depth</span>
+                                                            <p className="text-[14px] text-zinc-100 font-semibold">{meta.bitsPerSample}-bit</p>
+                                                        </div>
+                                                    )}
+                                                    {currentSong?.size && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Size</span>
+                                                            <p className="text-[14px] text-zinc-100 font-semibold">{(currentSong.size / (1024 * 1024)).toFixed(1)} MB</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Back (Info) Button Overlay (Bottom Left) -> exactly like front to act as a toggle off */}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setShowInfo(false); }}
+                                                className={`absolute bottom-4 left-4 z-40 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg bg-black/60 text-primary shadow-[0_0_15px_rgba(var(--theme-color),0.3)] ring-1 ring-primary/30`}
+                                                title="Back to Artwork"
+                                            >
+                                                <IoInformationCircleOutline size={22} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
