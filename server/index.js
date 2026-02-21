@@ -477,42 +477,6 @@ app.get('/api/files/recursive', async (req, res) => {
     }
 });
 
-// API: Lyrics Proxy (Avoid CORS issues with lrclib.net)
-app.get('/api/lyrics/get', async (req, res) => {
-    try {
-        const { artist_name, track_name, duration } = req.query;
-        if (!artist_name || !track_name) return res.status(400).json({ error: 'artist_name and track_name required' });
-
-        const params = { artist_name, track_name };
-        if (duration) params.duration = duration;
-
-        const response = await axios.get('https://lrclib.net/api/get', { params, timeout: 10000 });
-        res.json(response.data);
-    } catch (error) {
-        if (error.response) {
-            res.status(error.response.status).json(error.response.data || {});
-        } else {
-            res.status(500).json({ error: 'Lyrics fetch failed' });
-        }
-    }
-});
-
-app.get('/api/lyrics/search', async (req, res) => {
-    try {
-        const { q } = req.query;
-        if (!q) return res.status(400).json({ error: 'q (query) required' });
-
-        const response = await axios.get('https://lrclib.net/api/search', { params: { q }, timeout: 10000 });
-        res.json(response.data);
-    } catch (error) {
-        if (error.response) {
-            res.status(error.response.status).json(error.response.data || {});
-        } else {
-            res.status(500).json({ error: 'Lyrics search failed' });
-        }
-    }
-});
-
 // --- Artist Image Cache (in-memory) ---
 const artistImageCache = new Map();
 
