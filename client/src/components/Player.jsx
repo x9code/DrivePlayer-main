@@ -388,9 +388,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     <div
                         className={`w-full h-full z-10 grid items-stretch transition-[grid-template-columns,opacity,transform] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
                         style={{
-                            gridTemplateColumns: showLyrics ? '2fr 3fr' : '1fr 0fr',
-                            gap: showLyrics ? '2rem' : '0px',
-                            maxWidth: showLyrics ? '72rem' : '28rem',
+                            gridTemplateColumns: (showLyrics && lyricsStatus !== 'unavailable') ? '2fr 3fr' : '1fr 0fr',
+                            gap: (showLyrics && lyricsStatus !== 'unavailable') ? '2rem' : '0px',
+                            maxWidth: (showLyrics && lyricsStatus !== 'unavailable') ? '72rem' : '28rem',
                             margin: '0 auto',
                             transition: 'grid-template-columns 0.7s cubic-bezier(0.2,0.8,0.2,1), gap 0.7s cubic-bezier(0.2,0.8,0.2,1), max-width 0.7s cubic-bezier(0.2,0.8,0.2,1), opacity 0.7s cubic-bezier(0.2,0.8,0.2,1), transform 0.7s cubic-bezier(0.2,0.8,0.2,1)',
                         }}

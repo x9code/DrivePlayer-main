@@ -124,13 +124,13 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
         const observer = new MutationObserver(() => {
             injectStyles();
             if (el.shadowRoot && onAvailable) {
-                const hasError = el.shadowRoot.querySelector('.lyrics-error');
                 const hasLines = el.shadowRoot.querySelectorAll('.lyrics-line').length > 0;
+                const shadowText = el.shadowRoot.textContent || "";
 
-                if (hasError) {
-                    onAvailable(false);
-                } else if (hasLines) {
+                if (hasLines) {
                     onAvailable(true);
+                } else if (shadowText.includes("No lyrics found") || el.shadowRoot.querySelector('.lyrics-error')) {
+                    onAvailable(false);
                 }
             }
         });
