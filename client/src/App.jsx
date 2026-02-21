@@ -20,6 +20,11 @@ import { AuthProvider, useAuth } from './context/AuthContext'; // [NEW]
 import AuthScreen from './components/AuthScreen'; // [NEW]
 import ResetPasswordScreen from './components/ResetPasswordScreen'; // [NEW]
 
+// SOUND Assistant Imports
+import { VoiceService } from './utils/voiceService';
+import { aiService } from './utils/aiService';
+import { IoMicOutline, IoMicOffOutline, IoFlame } from 'react-icons/io5';
+
 // Environment variable for API URL (Production vs Dev)
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -36,6 +41,12 @@ function AppContent() {
   const [currentFolderName, setCurrentFolderName] = useState('Library'); // Default title
   const rootFolderId = useRef(null); // Track root folder ID to hide back button
   const mainScrollRef = useRef(null); // Ref for main scroll container
+
+  // --- SOUND Assistant State ---
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('driveplayer_sound_enabled') === 'true');
+  const [isSoundActive, setIsSoundActive] = useState(false);
+  const [soundStatus, setSoundStatus] = useState('');
+  const voiceServiceRef = useRef(null);
   // --- Queue System ---
   const [queue, setQueue] = useState([]);
 
@@ -611,6 +622,18 @@ function AppContent() {
       clearTimeout(searchTimeout.current);
     }
 
+    // [SOUND] Text Command detection
+    if (q.toLowerCase().startsWith('sound ')) {
+      const command = q.slice(6).trim();
+      if (command.length > 3) {
+        searchTimeout.current = setTimeout(() => {
+          handleSoundCommand(command);
+          setSearchQuery(''); // Clear search after command
+        }, 1000);
+      }
+      return;
+    }
+
     searchTimeout.current = setTimeout(() => {
       searchFiles(q);
     }, 500);
@@ -993,6 +1016,177 @@ function AppContent() {
     localStorage.setItem('driveplayer_sidebar_collapsed', isSidebarCollapsed);
   }, [isSidebarCollapsed]);
 
+  // --- SOUND Assistant Logic ---
+  const speakFeedback = (text) => {
+    if (!soundEnabled || !window.speechSynthesis) return;
+
+    // Ensure voices are loaded (sometimes required on first load)
+    let voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        voices = window.speechSynthesis.getVoices();
+        playVoice(text, voices);
+      };
+    } else {
+      playVoice(text, voices);
+    }
+  };
+
+  const playVoice = (text, voices) => {
+    window.speechSynthesis.cancel(); // Stop current speech if any
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Try to find a natural sounding English voice
+    const preferredVoice = voices.find(v => v.lang.includes('en-US') && (v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Zira')));
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    // Debugging logs to help identify why it isn't playing
+    utterance.onstart = () => console.log(`[SOUND Speaker] Started speaking: "${text}"`);
+    utterance.onerror = (e) => console.error(`[SOUND Speaker] Error speaking:`, e);
+
+    window.speechSynthesis.speak(utterance);
+    // Sometimes a resume is needed due to browser bugs
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+  };
+
+
+  useEffect(() => {
+    if (soundEnabled && !import.meta.env.VITE_GEMINI_API_KEY) {
+      setSoundStatus("Warning: VITE_GEMINI_API_KEY missing in .env");
+    }
+
+    if (soundEnabled && !window.isSecureContext && window.location.hostname !== 'localhost') {
+      setSoundStatus("Error: Voice requires HTTPS or localhost");
+    }
+  }, [soundEnabled]);
+
+  const handleSoundCommand = useCallback(async (command) => {
+    if (command.toLowerCase() === 'test') {
+      const isKeyValid = !!import.meta.env.VITE_GEMINI_API_KEY;
+      if (isKeyValid) {
+        setSoundStatus("SOUND Connection: SUCCESS! ✅");
+        speakFeedback("SOUND connection is successful.");
+      } else {
+        setSoundStatus("SOUND Connection: FAILED. Key missing. ❌");
+        speakFeedback("SOUND connection failed. Missing API key.");
+      }
+      setTimeout(() => setSoundStatus(''), 5000);
+      return;
+    }
+
+    setSoundStatus(`Thinking: "${command}"...`);
+    let result;
+    try {
+      result = await aiService.parseCommand(command);
+      console.log("SOUND Action:", result);
+    } catch (error) {
+      console.error("SOUND Command Error:", error);
+      setSoundStatus("Connection error ❌");
+      speakFeedback("I'm having trouble connecting.");
+      setTimeout(() => setSoundStatus(''), 3000);
+      return;
+    }
+
+    if (result.action === 'play' || result.action === 'search') {
+      // Use AI keywords if available, otherwise fallback to the raw command itself
+      const queryWords = result.keywords && result.keywords.length > 0
+        ? result.keywords[0]
+        : command.replace(/^(play|search)/i, '').trim() || command;
+
+      if (queryWords) {
+        setSoundStatus(`Searching for: ${queryWords}`);
+        setSearchQuery(queryWords);
+        setIsSearching(true);
+        try {
+          const res = await axios.get(`${API_BASE}/api/search?q=${encodeURIComponent(queryWords)}`);
+          const results = res.data || [];
+          setFiles(results);
+          if (results.length > 0) {
+            const firstSong = results.find(f => f.mimeType !== 'application/vnd.google-apps.folder');
+            if (firstSong) {
+              handlePlay(firstSong);
+              setSoundStatus(`Playing: ${firstSong.name}`);
+              speakFeedback(`Playing ${firstSong.name.replace('.flac', '').replace('.mp3', '')}`);
+            } else {
+              setSoundStatus("Found folders, but no songs.");
+              speakFeedback("I found folders, but no songs.");
+            }
+          } else {
+            setSoundStatus(`No results for "${queryWords}"`);
+            speakFeedback(`I couldn't find any results for ${queryWords}`);
+          }
+        } catch (e) {
+          console.error("SOUND search failed", e);
+          setSoundStatus("Search failed.");
+          speakFeedback("Sorry, the search failed.");
+        }
+      } else if (result.action === 'play') {
+        setIsPlaying(true);
+        setSoundStatus("Resuming playback");
+        speakFeedback("Resuming");
+      }
+
+    } else if (result.action === 'pause') {
+      setIsPlaying(false);
+      setSoundStatus("Paused");
+      speakFeedback("Paused");
+    } else if (result.action === 'resume') {
+      setIsPlaying(true);
+      setSoundStatus("Resuming");
+      speakFeedback("Resuming");
+    } else if (result.action === 'next') {
+      handleNext(false);
+      setSoundStatus("Skipping to next");
+      speakFeedback("Next song");
+    } else if (result.action === 'previous') {
+      handlePrev();
+      setSoundStatus("Going back");
+      speakFeedback("Going back");
+    }
+
+
+    // Clear status after 3 seconds
+    setTimeout(() => setSoundStatus(''), 3000);
+  }, [isPlaying, files, currentFolderId]);
+
+  useEffect(() => {
+    let interimTimeout;
+    if (soundEnabled && !voiceServiceRef.current) {
+      voiceServiceRef.current = new VoiceService(
+        handleSoundCommand,
+        (active) => setIsSoundActive(active),
+        (transcript) => {
+          // Provide interim feedback if it starts with "sound"
+          if (transcript.startsWith('sound')) {
+            setSoundStatus(transcript + '...');
+            clearTimeout(interimTimeout);
+            interimTimeout = setTimeout(() => setSoundStatus(''), 3000);
+          }
+        }
+      );
+      voiceServiceRef.current.start();
+    } else if (soundEnabled && voiceServiceRef.current) {
+      // KEEP IT UPDATED: React stale closures fix
+      voiceServiceRef.current.onCommandDetected = handleSoundCommand;
+    } else if (!soundEnabled && voiceServiceRef.current) {
+      voiceServiceRef.current.stop();
+      voiceServiceRef.current = null;
+      setIsSoundActive(false);
+      setSoundStatus('');
+    }
+
+    localStorage.setItem('driveplayer_sound_enabled', soundEnabled);
+  }, [soundEnabled, handleSoundCommand]);
+
+  const toggleSound = () => setSoundEnabled(!soundEnabled);
+
   const toggleSidebar = () => setIsSidebarCollapsed(!isSidebarCollapsed);
 
   return (
@@ -1068,6 +1262,22 @@ function AppContent() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* SOUND Toggle Button */}
+          <div className="flex items-center gap-2 mr-2">
+            {soundStatus && (
+              <div className={`sound-status-badge ${isSoundActive ? 'active' : ''}`}>
+                <IoFlame className={isSoundActive ? 'animate-pulse' : ''} />
+                <span>{soundStatus}</span>
+              </div>
+            )}
+            <button
+              onClick={toggleSound}
+              className={`sound-toggle-btn ${soundEnabled ? 'on' : 'off'}`}
+              title={soundEnabled ? 'Disable SOUND Assistant' : 'Enable SOUND Assistant'}
+            >
+              {soundEnabled ? <IoMicOutline size={22} /> : <IoMicOffOutline size={22} />}
+            </button>
+          </div>
 
           {/* Sort Button - Only show if there are files to sort */}
           {sortedFiles.some(f => f.mimeType !== 'application/vnd.google-apps.folder') && (
@@ -1310,6 +1520,9 @@ function AppContent() {
           />
         )
       }
+
+      {/* SOUND Glowing Effect */}
+      <div className={`sound-glow ${isSoundActive && soundEnabled ? 'active' : ''}`} />
 
       <ConfirmModal
         isOpen={confirmModal.isOpen}

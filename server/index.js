@@ -130,6 +130,16 @@ if (db) {
                         console.log("Username column ready");
                     }
                 });
+
+                // [NEW] Add OTP Verifications Table
+                db.run(`CREATE TABLE IF NOT EXISTS otp_verifications (
+                    email TEXT PRIMARY KEY,
+                    otp TEXT NOT NULL,
+                    expires_at DATETIME NOT NULL
+                )`, (err) => {
+                    if (err) console.error("Error creating otp_verifications table:", err);
+                    else console.log("OTP verifications table ready");
+                });
             }
         });
     });
@@ -151,33 +161,107 @@ const authenticateToken = (req, res, next) => {
 
 // --- AUTH ROUTES ---
 
-// Register
-app.post('/api/auth/register', async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+// Configure Nodemailer
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+    }
+});
+
+// Send OTP
+app.post('/api/auth/send-otp', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email required" });
 
     const normalizedEmail = email.toLowerCase();
 
-    try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const stmt = db.prepare("INSERT INTO users (email, password) VALUES (?, ?)");
-        stmt.run(normalizedEmail, hashedPassword, function (err) {
-            if (err) {
-                if (err.message.includes('UNIQUE constraint failed')) {
-                    return res.status(409).json({ error: "Email already exists" });
-                }
-                return res.status(500).json({ error: err.message });
-            }
+    // Check if user already exists
+    db.get("SELECT * FROM users WHERE email = ?", [normalizedEmail], (err, user) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (user) return res.status(409).json({ error: "Email already registered" });
 
-            // Auto-login after register
-            const user = { id: this.lastID, email: normalizedEmail };
-            const token = jwt.sign(user, JWT_SECRET, { expiresIn: '30d' }); // Long session
-            res.status(201).json({ token, user });
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Upsert OTP
+        const stmt = db.prepare(`
+            INSERT INTO otp_verifications (email, otp, expires_at) 
+            VALUES (?, ?, ?) 
+            ON CONFLICT(email) DO UPDATE SET otp=excluded.otp, expires_at=excluded.expires_at
+        `);
+
+        stmt.run(normalizedEmail, otp, expiresAt.toISOString(), function (err) {
+            if (err) return res.status(500).json({ error: "Failed to save OTP" });
+
+            const mailOptions = {
+                from: process.env.SMTP_USER,
+                to: normalizedEmail,
+                subject: 'Your DrivePlayer Verification Code',
+                text: `Your verification code is: ${otp}. It will expire in 10 minutes.`,
+                html: `<p>Your verification code is: <b style="font-size: 24px;">${otp}</b></p><p>This code will expire in 10 minutes.</p>`
+            };
+
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error("Email error:", error);
+                    return res.status(500).json({ error: "Failed to send email" });
+                }
+                res.json({ success: true, message: "OTP sent to email" });
+            });
         });
         stmt.finalize();
-    } catch (e) {
-        res.status(500).json({ error: "Server error" });
-    }
+    });
+});
+
+// Register
+app.post('/api/auth/register', async (req, res) => {
+    const { email, password, otp } = req.body;
+    if (!email || !password || !otp) return res.status(400).json({ error: "Email, password, and OTP required" });
+
+    const normalizedEmail = email.toLowerCase();
+
+    // Verify OTP
+    db.get("SELECT * FROM otp_verifications WHERE email = ?", [normalizedEmail], async (err, record) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (!record) return res.status(400).json({ error: "No OTP found for this email. Please request a new one." });
+
+        if (record.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
+
+        const now = new Date();
+        const expiresAt = new Date(record.expires_at);
+        if (now > expiresAt) {
+            return res.status(400).json({ error: "OTP expired" });
+        }
+
+        try {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            const stmt = db.prepare("INSERT INTO users (email, password) VALUES (?, ?)");
+            stmt.run(normalizedEmail, hashedPassword, function (err) {
+                if (err) {
+                    if (err.message.includes('UNIQUE constraint failed')) {
+                        return res.status(409).json({ error: "Email already exists" });
+                    }
+                    return res.status(500).json({ error: err.message });
+                }
+
+                // Delete OTP after successful registration
+                db.run("DELETE FROM otp_verifications WHERE email = ?", [normalizedEmail]);
+
+                // Auto-login after register
+                const user = { id: this.lastID, email: normalizedEmail };
+                const token = jwt.sign(user, JWT_SECRET, { expiresIn: '30d' }); // Long session
+                res.status(201).json({ token, user });
+            });
+            stmt.finalize();
+        } catch (e) {
+            res.status(500).json({ error: "Server error" });
+        }
+    });
 });
 
 // Login
@@ -202,17 +286,6 @@ app.post('/api/auth/login', async (req, res) => {
             res.status(500).json({ error: "Server error" });
         }
     });
-});
-
-// Configure Nodemailer
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-    }
 });
 
 // Forgot Password

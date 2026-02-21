@@ -4,12 +4,17 @@ import { IoMusicalNotes, IoArrowForward, IoPersonAdd, IoLogIn, IoAlertCircle, Io
 import ForgotPasswordModal from './ForgotPasswordModal';
 
 const AuthScreen = () => {
-    const { login, register } = useAuth();
+    const { login, register, sendOtp } = useAuth();
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [showForgotModal, setShowForgotModal] = useState(false);
+
+    // OTP states
+    const [showOtpInput, setShowOtpInput] = useState(false);
+    const [otp, setOtp] = useState('');
+
     const API_BASE = import.meta.env.VITE_API_URL || '';
 
     const [formData, setFormData] = useState({
@@ -28,12 +33,25 @@ const AuthScreen = () => {
         setLoading(true);
         setError(null);
 
-        const action = isLogin ? login : register;
-        const result = await action(formData.email, formData.password);
-
-        if (!result.success) {
-            setError(result.error);
+        if (isLogin) {
+            const result = await login(formData.email, formData.password);
+            if (!result.success) setError(result.error);
+        } else {
+            if (!showOtpInput) {
+                // Step 1: Request OTP
+                const result = await sendOtp(formData.email);
+                if (result.success) {
+                    setShowOtpInput(true);
+                } else {
+                    setError(result.error);
+                }
+            } else {
+                // Step 2: Verify & Register
+                const result = await register(formData.email, formData.password, otp);
+                if (!result.success) setError(result.error);
+            }
         }
+
         setLoading(false);
     };
 
@@ -78,7 +96,8 @@ const AuthScreen = () => {
                                 name="email"
                                 value={formData.email}
                                 onChange={handleChange}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
+                                disabled={!isLogin && showOtpInput}
+                                className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all ${!isLogin && showOtpInput ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 placeholder="you@example.com"
                                 required
                             />
@@ -91,7 +110,8 @@ const AuthScreen = () => {
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all pr-10"
+                                    disabled={!isLogin && showOtpInput}
+                                    className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all pr-10 ${!isLogin && showOtpInput ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     placeholder="••••••••"
                                     required
                                     minLength={6}
@@ -105,6 +125,26 @@ const AuthScreen = () => {
                                 </button>
                             </div>
                         </div>
+
+                        {!isLogin && showOtpInput && (
+                            <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 ml-1">6-Digit OTP</label>
+                                <input
+                                    type="text"
+                                    value={otp}
+                                    onChange={(e) => {
+                                        setOtp(e.target.value);
+                                        setError(null);
+                                    }}
+                                    className="w-full bg-white/5 border border-purple-500/30 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 focus:bg-white/10 transition-all text-center tracking-[0.5em] font-mono text-xl"
+                                    placeholder="------"
+                                    maxLength={6}
+                                    required
+                                    autoFocus
+                                />
+                                <p className="text-xs text-zinc-400 mt-2 text-center">We sent a verification code to your email.</p>
+                            </div>
+                        )}
 
                         {/* Forgot Password Link */}
                         {isLogin && (
@@ -129,7 +169,7 @@ const AuthScreen = () => {
                             <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                         ) : (
                             <>
-                                {isLogin ? 'Sign In' : 'Create Account'}
+                                {isLogin ? 'Sign In' : (showOtpInput ? 'Verify & Create Account' : 'Continue')}
                                 <IoArrowForward size={18} />
                             </>
                         )}
@@ -145,6 +185,8 @@ const AuthScreen = () => {
                                 setIsLogin(!isLogin);
                                 setError(null);
                                 setFormData({ email: '', password: '' });
+                                setShowOtpInput(false);
+                                setOtp('');
                             }}
                             className="ml-2 text-white font-medium hover:underline focus:outline-none"
                         >

@@ -148,3 +148,65 @@ input[type=range]::-webkit-slider-runnable-track {
     height: 30%;
   }
 }
+
+/* SOUND Assistant UI */
+.sound-glow {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: radial-gradient(circle at 50% 150%, rgba(var(--theme-color), 0.4) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.sound-glow.active {
+  opacity: 1;
+  animation: sound-pulse 4s infinite ease-in-out;
+}
+
+@keyframes sound-pulse {
+  0% {
+    transform: scaleY(1);
+    opacity: 0.6;
+  }
+
+  50% {
+    transform: scaleY(1.2);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scaleY(1);
+    opacity: 0.6;
+  }
+}
+
+.sound-status-badge {
+  @apply flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all duration-300;
+  background: rgba(var(--theme-color), 0.1);
+  border: 1px solid rgba(var(--theme-color), 0.2);
+  color: rgb(var(--theme-color));
+}
+
+.sound-status-badge.active {
+  background: rgba(var(--theme-color), 0.2);
+  border-color: rgba(var(--theme-color), 0.5);
+  box-shadow: 0 0 15px rgba(var(--theme-color), 0.3);
+}
+
+.sound-toggle-btn {
+  @apply w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300;
+}
+
+.sound-toggle-btn.on {
+  @apply text-white bg-primary;
+  box-shadow: 0 0 20px rgba(var(--theme-color), 0.4);
+}
+
+.sound-toggle-btn.off {
+  @apply text-zinc-500 bg-white/5 hover:bg-white/10;
+}

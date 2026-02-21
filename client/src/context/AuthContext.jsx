@@ -69,9 +69,19 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async (email, password) => {
+    const sendOtp = async (email) => {
         try {
-            const res = await axios.post(`${API_BASE}/api/auth/register`, { email, password });
+            const res = await axios.post(`${API_BASE}/api/auth/send-otp`, { email });
+            return { success: true, message: res.data.message };
+        } catch (err) {
+            console.error("Send OTP Error:", err);
+            return { success: false, error: err.response?.data?.error || err.message || "Failed to send OTP" };
+        }
+    };
+
+    const register = async (email, password, otp) => {
+        try {
+            const res = await axios.post(`${API_BASE}/api/auth/register`, { email, password, otp });
 
             // Validation: Detect HTML response (SPA Fallback)
             const contentType = res.headers['content-type'];
@@ -111,6 +121,7 @@ export const AuthProvider = ({ children }) => {
         token,
         loading,
         login,
+        sendOtp,
         register,
         logout,
         updateUser,
