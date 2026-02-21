@@ -121,16 +121,31 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
 
         // Try immediately, then retry with observer
         injectStyles();
+        let notFoundTimeout = null;
+
         const observer = new MutationObserver(() => {
             injectStyles();
             if (el.shadowRoot && onAvailable) {
                 const hasLines = el.shadowRoot.querySelectorAll('.lyrics-line').length > 0;
-                const shadowText = el.shadowRoot.textContent || "";
+                const errorNode = el.shadowRoot.querySelector('.lyrics-error');
+                const hasVisibleError = errorNode && window.getComputedStyle(errorNode).display !== 'none';
 
                 if (hasLines) {
+                    if (notFoundTimeout) {
+                        clearTimeout(notFoundTimeout);
+                        notFoundTimeout = null;
+                    }
                     onAvailable(true);
-                } else if (shadowText.includes("No lyrics found") || el.shadowRoot.querySelector('.lyrics-error')) {
-                    onAvailable(false);
+                } else if (hasVisibleError || (el.shadowRoot.textContent || "").includes("No lyrics found")) {
+                    if (!notFoundTimeout) {
+                        // Wait 4 seconds for slow network requests before definitively removing the button
+                        notFoundTimeout = setTimeout(() => {
+                            if (!el.shadowRoot) return;
+                            const stillNoLines = el.shadowRoot.querySelectorAll('.lyrics-line').length === 0;
+                            if (stillNoLines) onAvailable(false);
+                            notFoundTimeout = null;
+                        }, 4000);
+                    }
                 }
             }
         });
