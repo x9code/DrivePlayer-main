@@ -26,7 +26,7 @@ function loadAmLyricsScript() {
 // ────────────────────────────────────────────────────────────
 // am-lyrics via direct DOM web component (CDN loaded)
 // ────────────────────────────────────────────────────────────
-const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => {
+const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAvailable }) => {
     const containerRef = useRef(null);
     const amElementRef = useRef(null);
     const [scriptLoaded, setScriptLoaded] = useState(amLyricsLoaded);
@@ -97,61 +97,18 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
 
                 /* Inactive lines: very dim */
                 .lyrics-line {
-                    opacity: 0.6 !important;
+                    opacity: 0.8 !important;
                 }
 
                 /* Active line: full brightness */
                 .lyrics-line.active {
                     opacity: 1 !important;
-                    color: #ffffff !important;
                 }
-                
-                /* FIX: Remove gray background box ONLY for line-synced lyrics (no syllables) */
+
+                /* For line-synced lyrics with single syllable, avoid block background */
                 .lyrics-line.active:not(:has(.lyrics-syllable)) {
                     background: none !important;
                     background-color: transparent !important;
-                }
-
-                /* Sung syllables: bright white */
-                .lyrics-syllable.finished {
-                    background-color: #ffffff !important;
-                }
-
-                /* Unsung syllables: dimmer */
-                .lyrics-line .lyrics-syllable {
-                    background-color: rgba(255, 255, 255, 0.18) !important;
-                }
-
-                /* Active line syllables: proper transition */
-                .lyrics-line.active .lyrics-syllable {
-                    background-color: rgba(255, 255, 255, 0.18) !important;
-                }
-
-                .lyrics-line.active .lyrics-syllable.finished {
-                    background-color: #ffffff !important;
-                }
-
-                .lyrics-line.active .lyrics-syllable.finished:has(.char) {
-                    background-color: transparent !important;
-                }
-
-                /* Char-level highlight */
-                .lyrics-syllable.finished span.char {
-                    background-color: #ffffff !important;
-                }
-
-                .lyrics-syllable span.char {
-                    background-color: rgba(255, 255, 255, 0.18) !important;
-                }
-
-                /* Gap dots */
-                .lyrics-gap .lyrics-syllable {
-                    background-color: rgba(255, 255, 255, 0.18) !important;
-                    background-clip: unset !important;
-                }
-                .lyrics-gap.active .lyrics-syllable.highlight,
-                .lyrics-gap.active .lyrics-syllable.finished {
-                    background-color: #ffffff !important;
                 }
 
                 /* Hide header/footer controls for cleaner look */
@@ -164,7 +121,19 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
 
         // Try immediately, then retry with observer
         injectStyles();
-        const observer = new MutationObserver(() => injectStyles());
+        const observer = new MutationObserver(() => {
+            injectStyles();
+            if (el.shadowRoot && onAvailable) {
+                const hasError = el.shadowRoot.querySelector('.lyrics-error');
+                const hasLines = el.shadowRoot.querySelectorAll('.lyrics-line').length > 0;
+
+                if (hasError) {
+                    onAvailable(false);
+                } else if (hasLines) {
+                    onAvailable(true);
+                }
+            }
+        });
         if (el.shadowRoot) {
             observer.observe(el.shadowRoot, { childList: true, subtree: true });
         } else {
@@ -253,7 +222,7 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
 // ────────────────────────────────────────────────────────────
 // MAIN: am-lyrics only
 // ────────────────────────────────────────────────────────────
-const Lyrics = ({ audioRef, artist, title, duration, isExpanded }) => {
+const Lyrics = ({ audioRef, artist, title, duration, isExpanded, onAvailable }) => {
     if (!artist || !title) {
         return (
             <div className="w-full text-center py-8 text-zinc-500/50 text-xl font-medium h-full flex flex-col items-center justify-center gap-4">
@@ -274,6 +243,7 @@ const Lyrics = ({ audioRef, artist, title, duration, isExpanded }) => {
             title={title}
             duration={duration}
             isExpanded={isExpanded}
+            onAvailable={onAvailable}
         />
     );
 };

@@ -18,6 +18,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const [isLosslessModalOpen, setIsLosslessModalOpen] = useState(false);
     const [meta, setMeta] = useState({ title: null, artist: null });
     const [showInfo, setShowInfo] = useState(false);
+    const [lyricsStatus, setLyricsStatus] = useState('loading');
 
 
 
@@ -61,6 +62,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     useEffect(() => {
         if (currentSong) {
             setMeta({ title: null, artist: null });
+            setLyricsStatus('loading'); // Reset lyrics availability on new song
             fetch(`${API_BASE}/api/metadata/${currentSong.id}`)
                 .then(res => res.json())
                 .then(data => {
@@ -356,13 +358,15 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                         <div className="flex gap-3">
                             {/* Lyrics Toggle */}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setShowLyrics(!showLyrics); setShowInfo(false); }}
-                                className={`glass-button h-10 px-4 rounded-full flex items-center justify-center gap-2 transition-all ${showLyrics ? 'bg-primary/20 text-primary border-primary/30' : 'hover:text-white'}`}
-                            >
-                                <IoMusicalNote size={16} />
-                                <span className="text-xs font-bold">Lyrics</span>
-                            </button>
+                            {lyricsStatus !== 'unavailable' && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setShowLyrics(!showLyrics); setShowInfo(false); }}
+                                    className={`glass-button h-10 px-4 rounded-full flex items-center justify-center gap-2 transition-all ${showLyrics ? 'bg-primary/20 text-primary border-primary/30' : 'hover:text-white'}`}
+                                >
+                                    <IoMusicalNote size={16} />
+                                    <span className="text-xs font-bold">Lyrics</span>
+                                </button>
+                            )}
 
                             <button
                                 onClick={(e) => {
@@ -644,6 +648,14 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 title={displayMeta.title}
                                 duration={duration}
                                 isExpanded={isExpanded}
+                                onAvailable={(available) => {
+                                    if (available) {
+                                        setLyricsStatus('available');
+                                    } else {
+                                        setLyricsStatus('unavailable');
+                                        setShowLyrics(false);
+                                    }
+                                }}
                             />
                         </div>
                     </div>
