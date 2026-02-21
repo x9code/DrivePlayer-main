@@ -377,8 +377,8 @@ function AppContent() {
           break;
         case 'name':
         default:
-          valA = a.name.toLowerCase();
-          valB = b.name.toLowerCase();
+          valA = (a.title || a.name.replace(/^\d+[\s._-]+/, '').replace(/\.(mp3|m4a|flac|wav|ogg)$/i, '')).toLowerCase().trim();
+          valB = (b.title || b.name.replace(/^\d+[\s._-]+/, '').replace(/\.(mp3|m4a|flac|wav|ogg)$/i, '')).toLowerCase().trim();
       }
 
       if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
@@ -1092,8 +1092,11 @@ function AppContent() {
 
               {/* Dropdown */}
               {showSortMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 glass-panel rounded-2xl overflow-hidden p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-white/10">
-                  <div className="px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Sort By</div>
+                <div
+                  className="absolute right-0 top-full mt-2 w-48 glass-panel rounded-2xl overflow-hidden p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-white/10"
+                  style={{ backgroundColor: `rgba(var(--theme-color), 0.1)` }}
+                >
+                  <div className="px-3 py-2 text-[10px] font-bold text-zinc-300 uppercase tracking-widest">Sort By</div>
                   {['name', 'date', 'size'].map(opt => (
                     <button
                       key={opt}
@@ -1102,7 +1105,7 @@ function AppContent() {
                         setShowSortMenu(false);
                       }}
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors
-                                  ${sortOption === opt ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}
+                                  ${sortOption === opt ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}
                               `}
                     >
                       <span className="capitalize">{opt}</span>
@@ -1134,8 +1137,11 @@ function AppContent() {
 
               {/* View Dropdown */}
               {showViewMenu && (
-                <div className="absolute right-0 top-full mt-2 w-40 glass-panel rounded-2xl overflow-hidden p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-white/10">
-                  <div className="px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">View Mode</div>
+                <div
+                  className="absolute right-0 top-full mt-2 w-40 glass-panel rounded-2xl overflow-hidden p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-white/10"
+                  style={{ backgroundColor: `rgba(var(--theme-color), 0.1)` }}
+                >
+                  <div className="px-3 py-2 text-[10px] font-bold text-zinc-300 uppercase tracking-widest">View Mode</div>
                   {[
                     { id: 'grid', label: 'Grid', icon: IoGridOutline },
                     { id: 'list', label: 'List', icon: IoListOutline }

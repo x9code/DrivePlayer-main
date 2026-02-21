@@ -175,6 +175,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     audioRef.current.currentTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + 5);
                     setProgress(audioRef.current.currentTime);
                     break;
+                case 'KeyB':
+                    setIsExpanded(prev => !prev);
+                    break;
                 case 'KeyN': onNext(false); break;
                 case 'KeyP': onPrev(); break;
                 case 'KeyF':
