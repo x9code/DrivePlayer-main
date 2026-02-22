@@ -23,12 +23,11 @@ class MetadataService {
         this.cacheService = cacheService;
         this.cacheDir = cacheDir;
         this.libraryService = libraryService;
-        this.metadataCacheFile = path.join(cacheDir, 'metadata_cache.json');
-        this.folderCoversFile = path.join(cacheDir, 'folder_covers.json');
+
+        // Remove file-based persistence paths
         this.persistentCache = {};
         this.folderCovers = {};
-        this.loadPersistence();
-        this.loadFolderCovers();
+
         this.scanStatus = {
             active: false,
             total: 0,
@@ -36,6 +35,11 @@ class MetadataService {
             enriched: 0,
             errors: 0
         };
+    }
+
+    async init() {
+        await this.loadPersistence();
+        await this.loadFolderCovers();
     }
 
     /**
@@ -48,15 +52,14 @@ class MetadataService {
     /**
      * Load persistent metadata from disk
      */
-    loadPersistence() {
+    async loadPersistence() {
         try {
-            if (fs.existsSync(this.metadataCacheFile)) {
-                const data = fs.readFileSync(this.metadataCacheFile, 'utf8');
-                this.persistentCache = JSON.parse(data);
-                console.log(`[Metadata] Loaded ${Object.keys(this.persistentCache).length} entries from persistence.`);
+            if (this.libraryService) {
+                this.persistentCache = await this.libraryService.getMetadataCache();
+                console.log(`[Metadata] Loaded ${Object.keys(this.persistentCache).length} entries from DB persistence.`);
             }
         } catch (error) {
-            console.error('[Metadata] Error loading persistence:', error.message);
+            console.error('[Metadata] Error loading DB persistence:', error.message);
             this.persistentCache = {};
         }
     }
@@ -64,27 +67,28 @@ class MetadataService {
     /**
      * Save persistent metadata to disk
      */
-    savePersistence() {
+    async savePersistence(fileId, metadata) {
+        if (!fileId || !metadata) return; // Ignore legacy empty calls
         try {
-            fs.writeFileSync(this.metadataCacheFile, JSON.stringify(this.persistentCache, null, 2));
-            console.log(`[Metadata] Saved persistence cache.`);
+            if (this.libraryService) {
+                await this.libraryService.setMetadataCache(fileId, metadata);
+            }
         } catch (error) {
-            console.error('[Metadata] Error saving persistence:', error.message);
+            console.error('[Metadata] Error saving DB persistence:', error.message);
         }
     }
 
     /**
      * Load folder covers from disk
      */
-    loadFolderCovers() {
+    async loadFolderCovers() {
         try {
-            if (fs.existsSync(this.folderCoversFile)) {
-                const data = fs.readFileSync(this.folderCoversFile, 'utf8');
-                this.folderCovers = JSON.parse(data);
-                console.log(`[Metadata] Loaded ${Object.keys(this.folderCovers).length} folder covers.`);
+            if (this.libraryService) {
+                this.folderCovers = await this.libraryService.getFolderCovers();
+                console.log(`[Metadata] Loaded ${Object.keys(this.folderCovers).length} folder covers from DB.`);
             }
         } catch (error) {
-            console.error('[Metadata] Error loading folder covers:', error.message);
+            console.error('[Metadata] Error loading folder covers from DB:', error.message);
             this.folderCovers = {};
         }
     }
@@ -92,11 +96,13 @@ class MetadataService {
     /**
      * Save folder covers to disk
      */
-    saveFolderCovers() {
+    async saveFolderCovers() {
         try {
-            fs.writeFileSync(this.folderCoversFile, JSON.stringify(this.folderCovers, null, 2));
+            if (this.libraryService) {
+                await this.libraryService.setFolderCoversBatch(this.folderCovers);
+            }
         } catch (error) {
-            console.error('[Metadata] Error saving folder covers:', error.message);
+            console.error('[Metadata] Error saving folder covers to DB:', error.message);
         }
     }
 
@@ -211,7 +217,7 @@ class MetadataService {
 
             // Save to Persistent Cache
             this.persistentCache[fileId] = metadata;
-            this.savePersistence(); // Save immediately for safety (can optimize later)
+            await this.savePersistence(fileId, metadata);
 
             // Cache the result in memory too
             await this.cacheService.set(fileId, metadata);
@@ -238,6 +244,13 @@ class MetadataService {
     async parseMetadata(fileId, fileInfo) {
         const { name, size, mimeType } = fileInfo;
         console.log(`[Metadata] Parsing ${name} (${size} bytes, ${mimeType})`);
+
+        // Prevent Drive API 403 errors by explicitly skipping Google Workspace 
+        // documents and folders (they cannot be downloaded via ?alt=media)
+        if (mimeType === 'application/vnd.google-apps.folder' || mimeType.startsWith('application/vnd.google-apps')) {
+            console.log(`[Metadata] Skipping metadata download for Google Drive native file/folder: ${name}`);
+            return this.applyFilenameFallbacks(name, mimeType, size);
+        }
 
         try {
             // Optimized Download: Header + Footer only (~68KB total)
@@ -356,7 +369,7 @@ class MetadataService {
 
         if (updatedCount > 0) {
             console.log(`[Metadata] Enrichment complete. Updated ${updatedCount} files.`);
-            this.savePersistence();
+            // No global save needed as DB does it incrementally
 
             // Re-evaluate folder covers now that we have fresh metadata/artwork status
             this.updateFolderCovers(songs);

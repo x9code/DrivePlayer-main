@@ -26,7 +26,7 @@ function loadAmLyricsScript() {
 // ────────────────────────────────────────────────────────────
 // am-lyrics via direct DOM web component (CDN loaded)
 // ────────────────────────────────────────────────────────────
-const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAvailable }) => {
+const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => {
     const containerRef = useRef(null);
     const amElementRef = useRef(null);
     const [scriptLoaded, setScriptLoaded] = useState(amLyricsLoaded);
@@ -97,17 +97,18 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
 
                 /* Inactive lines: very dim */
                 .lyrics-line {
-                    opacity: 0.8 !important;
+                    opacity: 0.6 !important;
                 }
 
                 /* Active line: full brightness */
                 .lyrics-line.active {
                     opacity: 1 !important;
+                    color: #ffffff !important;
                 }
 
-                /* For line-synced lyrics with single syllable, avoid block background */
-                .lyrics-line.active:not(:has(.lyrics-syllable)) {
-                    background: none !important;
+                /* Fix: Prevent gray background box appearing behind active lines */
+                .lyrics-line.active {
+                    background: transparent !important;
                     background-color: transparent !important;
                 }
 
@@ -119,37 +120,48 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
             el.shadowRoot.prepend(style);
         };
 
-        // Try immediately, then retry with observer
-        injectStyles();
+        // Check if am-lyrics found anything by looking for .lyrics-line elements
         let notFoundTimeout = null;
+        let foundNoLyricsText = false;
 
-        const observer = new MutationObserver(() => {
-            injectStyles();
-            if (el.shadowRoot && onAvailable) {
-                const hasLines = el.shadowRoot.querySelectorAll('.lyrics-line').length > 0;
-                const errorNode = el.shadowRoot.querySelector('.lyrics-error');
-                const hasVisibleError = errorNode && window.getComputedStyle(errorNode).display !== 'none';
+        const checkLyricsLoaded = () => {
+            if (!el) return;
+            const shadow = el.shadowRoot || document.createElement('div');
 
-                if (hasLines) {
-                    if (notFoundTimeout) {
-                        clearTimeout(notFoundTimeout);
-                        notFoundTimeout = null;
-                    }
-                    onAvailable(true);
-                } else if (hasVisibleError || (el.shadowRoot.textContent || "").includes("No lyrics found")) {
-                    if (!notFoundTimeout) {
-                        // Wait 4 seconds for slow network requests before definitively removing the button
-                        notFoundTimeout = setTimeout(() => {
-                            if (!el.shadowRoot) return;
-                            const stillNoLines = el.shadowRoot.querySelectorAll('.lyrics-line').length === 0;
-                            if (stillNoLines) onAvailable(false);
-                            notFoundTimeout = null;
-                        }, 4000);
-                    }
+            const lines = shadow.querySelectorAll('.lyrics-line');
+            const syllables = shadow.querySelectorAll('.lyrics-syllable');
+            const textContent = (shadow.textContent + ' ' + el.textContent + ' ' + el.innerHTML).toLowerCase();
+
+            if (lines.length > 0 && syllables.length > 0) {
+                if (notFoundTimeout) clearTimeout(notFoundTimeout);
+                if (onAvailable) onAvailable(true);
+            } else if (textContent.includes('no lyrics found') || textContent.includes('not found')) {
+                if (notFoundTimeout) clearTimeout(notFoundTimeout);
+                if (!foundNoLyricsText && onAvailable) {
+                    foundNoLyricsText = true;
+                    onAvailable(false);
+                }
+            } else {
+                if (!notFoundTimeout) {
+                    notFoundTimeout = setTimeout(() => {
+                        const doubleCheck = shadow.querySelectorAll('.lyrics-syllable');
+                        if (doubleCheck.length === 0 && onAvailable) {
+                            onAvailable(false);
+                        }
+                    }, 2000); // Shorter fallback timeout
                 }
             }
+        };
+
+        // Try immediately, then retry with observer
+        injectStyles();
+        const observer = new MutationObserver(() => {
+            injectStyles();
+            checkLyricsLoaded();
         });
+
         if (el.shadowRoot) {
+            checkLyricsLoaded();
             observer.observe(el.shadowRoot, { childList: true, subtree: true });
         } else {
             // Wait for shadow root
@@ -157,6 +169,7 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
                 if (el.shadowRoot) {
                     clearInterval(checkInterval);
                     injectStyles();
+                    checkLyricsLoaded();
                     observer.observe(el.shadowRoot, { childList: true, subtree: true });
                 }
             }, 200);
@@ -238,6 +251,12 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
 // MAIN: am-lyrics only
 // ────────────────────────────────────────────────────────────
 const Lyrics = ({ audioRef, artist, title, duration, isExpanded, onAvailable }) => {
+    useEffect(() => {
+        if (!artist || !title) {
+            if (onAvailable) onAvailable(false);
+        }
+    }, [artist, title, onAvailable]);
+
     if (!artist || !title) {
         return (
             <div className="w-full text-center py-8 text-zinc-500/50 text-xl font-medium h-full flex flex-col items-center justify-center gap-4">
