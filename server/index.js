@@ -73,6 +73,38 @@ let metadataService = null;
 const os = require('os');
 const CACHE_DIR = path.join(os.tmpdir(), 'driveplayer-cache');
 
+// --- DATABASE & AUTH SETUP ---
+
+// Ensure Users Table Exists
+const db = LocalLibraryService.pool; // Access the Postgres pool
+
+async function initAuthTables() {
+    try {
+        await db.query(`CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+        console.log("Users table ready");
+
+        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path TEXT`);
+        console.log("Avatar column ready");
+
+        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT`);
+        console.log("Username column ready");
+
+        await db.query(`CREATE TABLE IF NOT EXISTS otp_verifications (
+            email TEXT PRIMARY KEY,
+            otp TEXT NOT NULL,
+            expires_at TIMESTAMP NOT NULL
+        )`);
+        console.log("OTP verifications table ready");
+    } catch (err) {
+        console.error("Error creating auth tables:", err);
+    }
+}
+
 async function initializeServices() {
     await authenticateDrive();
 
@@ -81,6 +113,10 @@ async function initializeServices() {
         driveService = new DriveService(driveClient);
         cacheService = new CacheService(CACHE_DIR);
         await cacheService.init();
+
+        // Wait for DB Authentication Schema First
+        await initAuthTables();
+
         // Inject LocalLibraryService for DB updates
         metadataService = new MetadataService(driveService, cacheService, CACHE_DIR, LocalLibraryService);
 
@@ -89,61 +125,15 @@ async function initializeServices() {
 
         console.log('[Services] All services initialized successfully');
 
-        // Trigger Background Sync (Bootstrap or Delta)
+        // Trigger Background Sync (Bootstrap or Delta) - Safe now since Schemas are awaited
         SyncService.startSync().catch(err => console.error('[Sync] Startup sync failed:', err));
     } else {
         console.error('[Services] Failed to initialize - Drive client not authenticated');
     }
 }
 
+// Start everything
 initializeServices();
-
-// --- DATABASE & AUTH SETUP ---
-
-// Ensure Users Table Exists
-const db = LocalLibraryService.db; // Access the existing SQLite instance
-if (db) {
-    db.serialize(() => {
-        db.run(`CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`, (err) => {
-            if (err) console.error("Error creating users table:", err);
-            else {
-                console.log("Users table ready");
-                // [NEW] Attempt to add avatar_path column if it doesn't exist
-                db.run("ALTER TABLE users ADD COLUMN avatar_path TEXT", (err) => {
-                    if (err && !err.message.includes('duplicate column')) {
-                        console.error("Column add error (might exist):", err.message);
-                    } else {
-                        console.log("Avatar column ready");
-                    }
-
-                });
-                // [NEW] Add Username Column
-                db.run("ALTER TABLE users ADD COLUMN username TEXT", (err) => {
-                    if (err && !err.message.includes('duplicate column')) {
-                        console.error("Column add error (might exist):", err.message);
-                    } else {
-                        console.log("Username column ready");
-                    }
-                });
-
-                // [NEW] Add OTP Verifications Table
-                db.run(`CREATE TABLE IF NOT EXISTS otp_verifications (
-                    email TEXT PRIMARY KEY,
-                    otp TEXT NOT NULL,
-                    expires_at DATETIME NOT NULL
-                )`, (err) => {
-                    if (err) console.error("Error creating otp_verifications table:", err);
-                    else console.log("OTP verifications table ready");
-                });
-            }
-        });
-    });
-}
 
 // Middleware: Authenticate Token
 const authenticateToken = (req, res, next) => {
@@ -179,43 +169,36 @@ app.post('/api/auth/send-otp', async (req, res) => {
 
     const normalizedEmail = email.toLowerCase();
 
-    // Check if user already exists
-    db.get("SELECT * FROM users WHERE email = ?", [normalizedEmail], (err, user) => {
-        if (err) return res.status(500).json({ error: "Database error" });
-        if (user) return res.status(409).json({ error: "Email already registered" });
+    try {
+        const { rows } = await db.query("SELECT * FROM users WHERE email = $1", [normalizedEmail]);
+        if (rows.length > 0) return res.status(409).json({ error: "Email already registered" });
 
-        // Generate 6-digit OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-        // Upsert OTP
-        const stmt = db.prepare(`
+        await db.query(`
             INSERT INTO otp_verifications (email, otp, expires_at) 
-            VALUES (?, ?, ?) 
+            VALUES ($1, $2, NOW() + interval '10 minutes') 
             ON CONFLICT(email) DO UPDATE SET otp=excluded.otp, expires_at=excluded.expires_at
-        `);
+        `, [normalizedEmail, otp]);
 
-        stmt.run(normalizedEmail, otp, expiresAt.toISOString(), function (err) {
-            if (err) return res.status(500).json({ error: "Failed to save OTP" });
+        const mailOptions = {
+            from: process.env.SMTP_USER,
+            to: normalizedEmail,
+            subject: 'Your DrivePlayer Verification Code',
+            text: `Your verification code is: ${otp}. It will expire in 10 minutes.`,
+            html: `<p>Your verification code is: <b style="font-size: 24px;">${otp}</b></p><p>This code will expire in 10 minutes.</p>`
+        };
 
-            const mailOptions = {
-                from: process.env.SMTP_USER,
-                to: normalizedEmail,
-                subject: 'Your DrivePlayer Verification Code',
-                text: `Your verification code is: ${otp}. It will expire in 10 minutes.`,
-                html: `<p>Your verification code is: <b style="font-size: 24px;">${otp}</b></p><p>This code will expire in 10 minutes.</p>`
-            };
-
-            transporter.sendMail(mailOptions, (error, info) => {
-                if (error) {
-                    console.error("Email error:", error);
-                    return res.status(500).json({ error: "Failed to send email" });
-                }
-                res.json({ success: true, message: "OTP sent to email" });
-            });
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.error("Email error:", error);
+                return res.status(500).json({ error: "Failed to send email" });
+            }
+            res.json({ success: true, message: "OTP sent to email" });
         });
-        stmt.finalize();
-    });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Database error" });
+    }
 });
 
 // Register
@@ -225,43 +208,47 @@ app.post('/api/auth/register', async (req, res) => {
 
     const normalizedEmail = email.toLowerCase();
 
-    // Verify OTP
-    db.get("SELECT * FROM otp_verifications WHERE email = ?", [normalizedEmail], async (err, record) => {
-        if (err) return res.status(500).json({ error: "Database error" });
+    try {
+        const { rows } = await db.query("SELECT * FROM otp_verifications WHERE email = $1", [normalizedEmail]);
+        const record = rows[0];
         if (!record) return res.status(400).json({ error: "No OTP found for this email. Please request a new one." });
 
         if (record.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
 
-        const now = new Date();
-        const expiresAt = new Date(record.expires_at);
-        if (now > expiresAt) {
+        // Check Expiry in DB Time
+        const { rows: expiryCheck } = await db.query(
+            "SELECT 1 FROM otp_verifications WHERE email = $1 AND expires_at > NOW()",
+            [normalizedEmail]
+        );
+
+        if (expiryCheck.length === 0) {
             return res.status(400).json({ error: "OTP expired" });
         }
 
+        const hashedPassword = await bcrypt.hash(password, 10);
         try {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            const stmt = db.prepare("INSERT INTO users (email, password) VALUES (?, ?)");
-            stmt.run(normalizedEmail, hashedPassword, function (err) {
-                if (err) {
-                    if (err.message.includes('UNIQUE constraint failed')) {
-                        return res.status(409).json({ error: "Email already exists" });
-                    }
-                    return res.status(500).json({ error: err.message });
-                }
+            const { rows: inserted } = await db.query(
+                "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id",
+                [normalizedEmail, hashedPassword]
+            );
+            const newUserId = inserted[0].id;
 
-                // Delete OTP after successful registration
-                db.run("DELETE FROM otp_verifications WHERE email = ?", [normalizedEmail]);
+            // Delete OTP after successful registration
+            await db.query("DELETE FROM otp_verifications WHERE email = $1", [normalizedEmail]);
 
-                // Auto-login after register
-                const user = { id: this.lastID, email: normalizedEmail };
-                const token = jwt.sign(user, JWT_SECRET, { expiresIn: '30d' }); // Long session
-                res.status(201).json({ token, user });
-            });
-            stmt.finalize();
-        } catch (e) {
-            res.status(500).json({ error: "Server error" });
+            // Auto-login after register
+            const user = { id: newUserId, email: normalizedEmail };
+            const token = jwt.sign(user, JWT_SECRET, { expiresIn: '30d' }); // Long session
+            res.status(201).json({ token, user });
+        } catch (err) {
+            if (err.message.includes('unique constraint') || err.code === '23505') {
+                return res.status(409).json({ error: "Email already exists" });
+            }
+            return res.status(500).json({ error: err.message });
         }
-    });
+    } catch (e) {
+        res.status(500).json({ error: "Server error" });
+    }
 });
 
 // Login
@@ -271,21 +258,20 @@ app.post('/api/auth/login', async (req, res) => {
 
     const normalizedEmail = email.toLowerCase();
 
-    db.get("SELECT * FROM users WHERE email = ?", [normalizedEmail], async (err, user) => {
-        if (err) return res.status(500).json({ error: "Database error" });
+    try {
+        const { rows } = await db.query("SELECT * FROM users WHERE email = $1", [normalizedEmail]);
+        const user = rows[0];
         if (!user) return res.status(400).json({ error: "User not found" });
 
-        try {
-            if (await bcrypt.compare(password, user.password)) {
-                const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
-                res.json({ token, user: { id: user.id, email: user.email } });
-            } else {
-                res.status(401).json({ error: "Invalid credentials" });
-            }
-        } catch (e) {
-            res.status(500).json({ error: "Server error" });
+        if (await bcrypt.compare(password, user.password)) {
+            const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+            res.json({ token, user: { id: user.id, email: user.email, username: user.username, avatar_path: user.avatar_path } });
+        } else {
+            res.status(401).json({ error: "Invalid credentials" });
         }
-    });
+    } catch (e) {
+        res.status(500).json({ error: "Server error" });
+    }
 });
 
 // Forgot Password
@@ -295,41 +281,43 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     const normalizedEmail = email.toLowerCase();
 
-    // Check if user exists first
-    db.get("SELECT * FROM users WHERE email = ?", [normalizedEmail], (err, user) => {
-        if (err) return res.status(500).json({ error: "Database error" });
+    try {
+        const { rows } = await db.query("SELECT * FROM users WHERE email = $1", [normalizedEmail]);
+        const user = rows[0];
         if (!user) return res.status(404).json({ error: "User not found" });
 
         // Generate Token
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 3600000); // 1 Hour
 
-        const stmt = db.prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
-        stmt.run(normalizedEmail, token, expiresAt.toISOString(), function (err) {
-            if (err) return res.status(500).json({ error: "Failed to create reset token" });
+        await db.query(
+            "INSERT INTO password_resets (email, token, expires_at) VALUES ($1, $2, $3)",
+            [normalizedEmail, token, expiresAt.toISOString()]
+        );
 
-            // Send Email
-            // TODO: Configurable Frontend URL
-            const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+        // Send Email
+        // TODO: Configurable Frontend URL
+        const resetLink = `http://localhost:5173/reset-password?token=${token}`;
 
-            const mailOptions = {
-                from: process.env.SMTP_USER, // Sender address
-                to: normalizedEmail,
-                subject: 'Password Reset Request',
-                text: `You requested a password reset. Click the link to reset your password: ${resetLink}`,
-                html: `<p>You requested a password reset.</p><p>Click the link below to reset your password:</p><a href="${resetLink}">${resetLink}</a><p>This link expires in 1 hour.</p>`
-            };
+        const mailOptions = {
+            from: process.env.SMTP_USER, // Sender address
+            to: normalizedEmail,
+            subject: 'Password Reset Request',
+            text: `You requested a password reset. Click the link to reset your password: ${resetLink}`,
+            html: `<p>You requested a password reset.</p><p>Click the link below to reset your password:</p><a href="${resetLink}">${resetLink}</a><p>This link expires in 1 hour.</p>`
+        };
 
-            transporter.sendMail(mailOptions, (error, info) => {
-                if (error) {
-                    console.error("Email error:", error);
-                    return res.status(500).json({ error: "Failed to send email" });
-                }
-                res.json({ success: true, message: "Reset link sent to email" });
-            });
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.error("Email error:", error);
+                return res.status(500).json({ error: "Failed to send email" });
+            }
+            res.json({ success: true, message: "Reset link sent to email" });
         });
-        stmt.finalize();
-    });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Database error" });
+    }
 });
 
 // Reset Password
@@ -337,8 +325,9 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const { token, newPassword } = req.body;
     if (!token || !newPassword) return res.status(400).json({ error: "Token and new password required" });
 
-    db.get("SELECT * FROM password_resets WHERE token = ?", [token], async (err, row) => {
-        if (err) return res.status(500).json({ error: "Database error" });
+    try {
+        const { rows } = await db.query("SELECT * FROM password_resets WHERE token = $1", [token]);
+        const row = rows[0];
         if (!row) return res.status(400).json({ error: "Invalid or expired token" });
 
         const now = new Date();
@@ -348,24 +337,19 @@ app.post('/api/auth/reset-password', async (req, res) => {
             return res.status(400).json({ error: "Token expired" });
         }
 
-        try {
-            const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-            // Update User Password
-            const updateStmt = db.prepare("UPDATE users SET password = ? WHERE email = ?");
-            updateStmt.run(hashedPassword, row.email, function (err) {
-                if (err) return res.status(500).json({ error: "Failed to update password" });
+        // Update User Password
+        await db.query("UPDATE users SET password = $1 WHERE email = $2", [hashedPassword, row.email]);
 
-                // Delete Token (prevent reuse)
-                db.run("DELETE FROM password_resets WHERE token = ?", [token]);
+        // Delete Token (prevent reuse)
+        await db.query("DELETE FROM password_resets WHERE token = $1", [token]);
 
-                res.json({ success: true, message: "Password updated successfully" });
-            });
-            updateStmt.finalize();
-        } catch (e) {
-            res.status(500).json({ error: "Server error" });
-        }
-    });
+        res.json({ success: true, message: "Password updated successfully" });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Server error" });
+    }
 });
 
 // Get Current User (Verify Token)
@@ -801,17 +785,17 @@ app.post('/api/metadata/rescan', async (req, res) => {
         // CRITICAL FIX: Update SQLite DB Structure (Parent/Child links)
         // The metadata service only updates JSON cache, but we need DB for recursive queries.
         console.log('[Metadata] Rescan: Syncing file structure to DB...');
-        await LocalLibraryService.beginTransaction();
+        const client = await LocalLibraryService.beginTransaction();
         try {
             for (const file of files) {
                 // Use SyncService mapper to handle parent logic consistently
                 const dbFile = SyncService.mapDriveFileToDB(file);
-                await LocalLibraryService.upsertFile(dbFile);
+                await LocalLibraryService.upsertFile(dbFile, client);
             }
-            await LocalLibraryService.commit();
+            await LocalLibraryService.commit(client);
             console.log('[Metadata] DB Structure updated successfully.');
         } catch (dbErr) {
-            await LocalLibraryService.rollback();
+            await LocalLibraryService.rollback(client);
             console.error('[Metadata] Failed to update DB structure:', dbErr);
             // Continue to enrichment even if DB update fails (though it shouldn't)
         }
@@ -913,22 +897,21 @@ const uploadAvatar = multer({
 });
 
 // API: Upload Avatar
-app.post('/api/user/avatar', authenticateToken, uploadAvatar.single('image'), (req, res) => {
+app.post('/api/user/avatar', authenticateToken, uploadAvatar.single('image'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 
     const avatarPath = `/uploads/avatars/${req.file.filename}`;
 
-    // Update DB
-    const stmt = db.prepare("UPDATE users SET avatar_path = ? WHERE id = ?");
-    stmt.run(avatarPath, req.user.id, function (err) {
-        if (err) return res.status(500).json({ error: "Database update failed" });
+    try {
+        await db.query("UPDATE users SET avatar_path = $1 WHERE id = $2", [avatarPath, req.user.id]);
         res.json({ success: true, avatarPath });
-    });
-    stmt.finalize();
+    } catch (err) {
+        return res.status(500).json({ error: "Database update failed" });
+    }
 });
 
 // API: Update User Profile (Username)
-app.put('/api/user/profile', authenticateToken, (req, res) => {
+app.put('/api/user/profile', authenticateToken, async (req, res) => {
     const { username } = req.body;
     if (!username || typeof username !== 'string' || username.trim().length === 0) {
         return res.status(400).json({ error: "Invalid username" });
@@ -936,18 +919,15 @@ app.put('/api/user/profile', authenticateToken, (req, res) => {
 
     const trimmedUsername = username.trim();
 
-    // Check uniqueness (optional, but good practice)
-    db.get("SELECT id FROM users WHERE username = ? AND id != ?", [trimmedUsername, req.user.id], (err, row) => {
-        if (err) return res.status(500).json({ error: "Database error" });
-        if (row) return res.status(409).json({ error: "Username already taken" });
+    try {
+        const { rows } = await db.query("SELECT id FROM users WHERE username = $1 AND id != $2", [trimmedUsername, req.user.id]);
+        if (rows.length > 0) return res.status(409).json({ error: "Username already taken" });
 
-        const stmt = db.prepare("UPDATE users SET username = ? WHERE id = ?");
-        stmt.run(trimmedUsername, req.user.id, function (err) {
-            if (err) return res.status(500).json({ error: "Update failed" });
-            res.json({ success: true, username: trimmedUsername });
-        });
-        stmt.finalize();
-    });
+        await db.query("UPDATE users SET username = $1 WHERE id = $2", [trimmedUsername, req.user.id]);
+        res.json({ success: true, username: trimmedUsername });
+    } catch (err) {
+        return res.status(500).json({ error: "Database error" });
+    }
 });
 // ----------------------------
 

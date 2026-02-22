@@ -107,7 +107,7 @@ class SyncService {
         const startToken = await this.driveService.getStartPageToken();
 
         // 4. Batch Insert
-        await libraryService.beginTransaction();
+        const client = await libraryService.beginTransaction();
         try {
             let batch = [];
             for (const file of allFiles) {
@@ -115,20 +115,20 @@ class SyncService {
                 batch.push(dbFile);
 
                 if (batch.length >= this.BATCH_SIZE) {
-                    await this.processBatch(batch);
+                    await this.processBatch(batch, client);
                     batch = [];
                 }
             }
-            if (batch.length > 0) await this.processBatch(batch);
+            if (batch.length > 0) await this.processBatch(batch, client);
 
             // 5. Save Token INSIDE Transaction (Atomic commit)
-            await libraryService.setSyncState('nextPageToken', startToken);
+            await libraryService.setSyncState('nextPageToken', startToken, client);
 
-            await libraryService.commit();
+            await libraryService.commit(client);
             console.log('[Sync] Bootstrap complete. Saved start token.');
 
         } catch (err) {
-            await libraryService.rollback();
+            await libraryService.rollback(client);
             throw err;
         }
     }
@@ -148,14 +148,14 @@ class SyncService {
 
             if (changes.length > 0) {
                 console.log(`[Sync] Processing ${changes.length} changes for token ${pageToken}...`);
-                await libraryService.beginTransaction();
+                const client = await libraryService.beginTransaction();
                 try {
                     for (const change of changes) {
                         if (change.removed || (change.file && change.file.trashed)) {
-                            await libraryService.softDeleteFile(change.fileId);
+                            await libraryService.softDeleteFile(change.fileId, client);
                         } else if (change.file) {
                             const dbFile = this.mapDriveFileToDB(change.file);
-                            await this.upsertWithOptimization(dbFile);
+                            await this.upsertWithOptimization(dbFile, client);
                         }
                     }
 
@@ -176,13 +176,13 @@ class SyncService {
 
                     const nextTokenToSave = newStartPageToken;
                     if (nextTokenToSave) {
-                        await libraryService.setSyncState('nextPageToken', nextTokenToSave);
+                        await libraryService.setSyncState('nextPageToken', nextTokenToSave, client);
                         pageToken = nextTokenToSave; // Update local loop var
                     }
 
-                    await libraryService.commit();
+                    await libraryService.commit(client);
                 } catch (err) {
-                    await libraryService.rollback();
+                    await libraryService.rollback(client);
                     throw err;
                 }
             } else {
@@ -297,32 +297,27 @@ class SyncService {
     /**
      * Upsert but preserve metadata if checksum/mod-time matches
      */
-    async upsertWithOptimization(newFile) {
-        // 1. Get existing
-        // We'd need a `getFile` method in libraryService, but we can just do an UPSERT that 
-        // doesn't overwrite if conditions match?
-        // SQLite doesn't easily support "Don't overwrite X if Y".
-        // Better: Read -> Compare -> Write.
-        // inside transaction, so it's safe.
-
-        // Actually, LibraryService.upsertFile creates a new entry if not exists.
-        // We should add a `getFile(id)` to LibraryService for this check.
-        // For now, let's just Upsert. We lose metadata on re-sync if we don't check.
-        // TODO: Implement "Smart Metadata Preservation"
-
+    async upsertWithOptimization(newFile, client) {
         // Minimal logic: rely on LibraryService.upsertFile to just overwrite.
-        // The real robustness comes when we integrate `metadataService`.
-        // For this step, simply updating the DB struct is enough.
-        await libraryService.upsertFile(newFile);
+        await libraryService.upsertFile(newFile, client);
     }
 
     /**
      * Process a batch of files
      */
-    async processBatch(batch) {
+    async processBatch(batch, client) {
+        console.log(`[Sync] Inserting batch of ${batch.length} files...`);
+        let count = 0;
         for (const file of batch) {
-            await libraryService.upsertFile(file);
+            try {
+                await libraryService.upsertFile(file, client);
+                count++;
+            } catch (err) {
+                console.error(`[Sync] Error upserting file ${file.name} (${file.id}):`, err);
+                throw err;
+            }
         }
+        console.log(`[Sync] Finished inserting ${count} files in this batch.`);
     }
 }
 

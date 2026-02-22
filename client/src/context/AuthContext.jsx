@@ -72,9 +72,9 @@ export const AuthProvider = ({ children }) => {
     const sendOtp = async (email) => {
         try {
             const res = await axios.post(`${API_BASE}/api/auth/send-otp`, { email });
-            return { success: true, message: res.data.message };
+            return { success: true };
         } catch (err) {
-            console.error("Send OTP Error:", err);
+            console.error("OTP Error:", err);
             return { success: false, error: err.response?.data?.error || err.message || "Failed to send OTP" };
         }
     };
@@ -121,8 +121,8 @@ export const AuthProvider = ({ children }) => {
         token,
         loading,
         login,
-        sendOtp,
         register,
+        sendOtp,
         logout,
         updateUser,
         isAuthenticated: !!user

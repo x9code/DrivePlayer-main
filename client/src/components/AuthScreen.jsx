@@ -6,20 +6,17 @@ import ForgotPasswordModal from './ForgotPasswordModal';
 const AuthScreen = () => {
     const { login, register, sendOtp } = useAuth();
     const [isLogin, setIsLogin] = useState(true);
+    const [isOtpSent, setIsOtpSent] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [showForgotModal, setShowForgotModal] = useState(false);
-
-    // OTP states
-    const [showOtpInput, setShowOtpInput] = useState(false);
-    const [otp, setOtp] = useState('');
-
     const API_BASE = import.meta.env.VITE_API_URL || '';
 
     const [formData, setFormData] = useState({
         email: '',
-        password: ''
+        password: '',
+        otp: ''
     });
 
     const handleChange = (e) => {
@@ -35,23 +32,32 @@ const AuthScreen = () => {
 
         if (isLogin) {
             const result = await login(formData.email, formData.password);
-            if (!result.success) setError(result.error);
+            if (!result.success) {
+                setError(result.error);
+            }
         } else {
-            if (!showOtpInput) {
-                // Step 1: Request OTP
+            if (!isOtpSent) {
+                // Step 1: Send OTP
                 const result = await sendOtp(formData.email);
                 if (result.success) {
-                    setShowOtpInput(true);
+                    setIsOtpSent(true);
+                    setError(null); // Clear errors
                 } else {
                     setError(result.error);
                 }
             } else {
-                // Step 2: Verify & Register
-                const result = await register(formData.email, formData.password, otp);
-                if (!result.success) setError(result.error);
+                // Step 2: Register with OTP
+                if (!formData.otp) {
+                    setError("Please enter the OTP sent to your email.");
+                    setLoading(false);
+                    return;
+                }
+                const result = await register(formData.email, formData.password, formData.otp);
+                if (!result.success) {
+                    setError(result.error);
+                }
             }
         }
-
         setLoading(false);
     };
 
@@ -96,8 +102,7 @@ const AuthScreen = () => {
                                 name="email"
                                 value={formData.email}
                                 onChange={handleChange}
-                                disabled={!isLogin && showOtpInput}
-                                className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all ${!isLogin && showOtpInput ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
                                 placeholder="you@example.com"
                                 required
                             />
@@ -110,10 +115,9 @@ const AuthScreen = () => {
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
-                                    disabled={!isLogin && showOtpInput}
-                                    className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all pr-10 ${!isLogin && showOtpInput ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all pr-10 disabled:opacity-50"
                                     placeholder="••••••••"
-                                    required
+                                    required={isLogin || isOtpSent}
                                     minLength={6}
                                 />
                                 <button
@@ -126,23 +130,36 @@ const AuthScreen = () => {
                             </div>
                         </div>
 
-                        {!isLogin && showOtpInput && (
-                            <div className="animate-in fade-in slide-in-from-top-4 duration-300">
-                                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 ml-1">6-Digit OTP</label>
+                        {/* OTP Field (Visible only during Registration Step 2) */}
+                        {!isLogin && isOtpSent && (
+                            <div>
+                                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 ml-1 flex justify-between">
+                                    <span>Verification Code</span>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const result = await sendOtp(formData.email);
+                                            if (result.success) {
+                                                alert("OTP Resent!");
+                                            } else {
+                                                setError(result.error);
+                                            }
+                                        }}
+                                        className="text-[10px] text-purple-400 hover:text-purple-300 hover:underline cursor-pointer"
+                                    >
+                                        Resend OTP
+                                    </button>
+                                </label>
                                 <input
                                     type="text"
-                                    value={otp}
-                                    onChange={(e) => {
-                                        setOtp(e.target.value);
-                                        setError(null);
-                                    }}
-                                    className="w-full bg-white/5 border border-purple-500/30 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 focus:bg-white/10 transition-all text-center tracking-[0.5em] font-mono text-xl"
-                                    placeholder="------"
-                                    maxLength={6}
+                                    name="otp"
+                                    value={formData.otp}
+                                    onChange={handleChange}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
+                                    placeholder="Enter 6-digit OTP"
                                     required
-                                    autoFocus
+                                    maxLength={6}
                                 />
-                                <p className="text-xs text-zinc-400 mt-2 text-center">We sent a verification code to your email.</p>
                             </div>
                         )}
 
@@ -169,7 +186,7 @@ const AuthScreen = () => {
                             <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                         ) : (
                             <>
-                                {isLogin ? 'Sign In' : (showOtpInput ? 'Verify & Create Account' : 'Continue')}
+                                {isLogin ? 'Sign In' : (isOtpSent ? 'Verify & Register' : 'Send Verification Code')}
                                 <IoArrowForward size={18} />
                             </>
                         )}
@@ -183,10 +200,9 @@ const AuthScreen = () => {
                         <button
                             onClick={() => {
                                 setIsLogin(!isLogin);
+                                setIsOtpSent(false); // Reset OTP state
                                 setError(null);
-                                setFormData({ email: '', password: '' });
-                                setShowOtpInput(false);
-                                setOtp('');
+                                setFormData({ email: '', password: '', otp: '' });
                             }}
                             className="ml-2 text-white font-medium hover:underline focus:outline-none"
                         >

@@ -1,36 +1,35 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
+const dotenv = require('dotenv');
 
-// Ensure database directory exists
-const dbDir = path.join(__dirname);
-if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-}
+dotenv.config();
 
-const dbPath = path.join(dbDir, 'library.db');
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/driveplayer',
+    ssl: { rejectUnauthorized: false } // Required for Neon and other cloud DBs
+});
 
-const db = new sqlite3.Database(dbPath, (err) => {
+// Test connection
+pool.query('SELECT NOW()', (err, res) => {
     if (err) {
-        console.error('[Database] Connection error:', err.message);
+        console.error('[Database] Connection error (ensure DATABASE_URL is set):', err.message);
     } else {
-        console.log('[Database] Connected to library.db');
+        console.log('[Database] Connected to PostgreSQL');
     }
 });
 
-// Initialize Schema immediately (queued by sqlite3)
+// Initialize Schema immediately
 initializeSchema();
 
-function initializeSchema() {
-    db.serialize(() => {
+async function initializeSchema() {
+    try {
         // Files Table
-        db.run(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS files (
                 id TEXT PRIMARY KEY,
                 name TEXT,
                 parent TEXT,
                 mimeType TEXT,
-                size INTEGER,
+                size BIGINT,
                 createdTime TEXT,
                 modifiedTime TEXT,
                 md5Checksum TEXT,
@@ -43,34 +42,47 @@ function initializeSchema() {
             )
         `);
 
-        // Migration: Add picture column if it doesn't exist (for existing DBs)
-        db.run(`ALTER TABLE files ADD COLUMN picture TEXT`, (err) => {
-            // Ignore error if column already exists
-            if (err && !err.message.includes('duplicate column')) {
-                // console.log('[Database] Column migration check:', err.message);
-            } else if (!err) {
-                console.log('[Database] Migrated: Added picture column');
-            }
-        });
+        // Migration: Add picture column if it doesn't exist
+        await pool.query(`ALTER TABLE files ADD COLUMN IF NOT EXISTS picture TEXT`);
 
         // Indexes for performance
-        db.run(`CREATE INDEX IF NOT EXISTS idx_parent ON files(parent)`);
-        db.run(`CREATE INDEX IF NOT EXISTS idx_mimeType ON files(mimeType)`);
-        db.run(`CREATE INDEX IF NOT EXISTS idx_album ON files(album)`);
-        db.run(`CREATE INDEX IF NOT EXISTS idx_artist ON files(artist)`);
-        db.run(`CREATE INDEX IF NOT EXISTS idx_title ON files(title)`);
-        db.run(`CREATE INDEX IF NOT EXISTS idx_trashed ON files(is_trashed)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_parent ON files(parent)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_mimeType ON files(mimeType)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_album ON files(album)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_artist ON files(artist)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_title ON files(title)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_trashed ON files(is_trashed)`);
 
         // Sync State Table
-        db.run(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS sync_state (
                 key TEXT PRIMARY KEY,
                 value TEXT
             )
         `);
 
+        // Metadata Cache Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS metadata_cache (
+                file_id TEXT PRIMARY KEY,
+                metadata JSONB,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Folder Covers Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS folder_covers (
+                folder_id TEXT PRIMARY KEY,
+                cover_file_id TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
         console.log('[Database] Schema initialized/verified');
-    });
+    } catch (err) {
+        console.error('[Database] Schema initialization error:', err);
+    }
 }
 
-module.exports = db;
+module.exports = pool;
