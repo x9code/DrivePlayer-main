@@ -7,35 +7,29 @@ Built with **React** and **Node.js**, DrivePlayer offers a premium listening exp
 ## ✨ Key Features
 
 ### 🎧 High-Fidelity Audio
-- **Lossless Support**: Native playback of FLAC files with full metadata.
+- **Lossless Support**: Native playback of FLAC files with full metadata extraction.
 - **Hi-Res Audio**: Automatically detects and plays high-resolution audio (up to 24-bit/192kHz).
 - **Smart Badges**: Dynamic **"Lossless"** and **"Hi-Res Lossless"** badges based on file quality.
-- **Technical Details**: Interactive modal revealing **Bit Depth**, **Sample Rate**, and **Codec** information.
+- **Technical Details**: Interactive modal revealing **Bit Depth**, **Sample Rate**, and **Codec**.
 
 ### 🎨 Premium UI/UX
 - **Glassmorphism Design**: Beautiful, translucent interface with blur effects and dynamic gradients.
 - **Dynamic Theming**: The entire app adapts its color scheme to the currently playing album art.
 - **Real-Time Visualizer**: 512-bar FFT audio visualizer that reacts to the beat, color-matched to the track.
-- **Responsive Layout**: Seamless experience across desktop and mobile devices.
+- **Responsive Layout**: Seamless experience across desktop and mobile devices with adaptive sidebars.
 
 ### 🎤 Lyrics & Immersion
-- **Synced Lyrics**: Supports standard LRC files for time-synced lyrics.
+- **Synced Lyrics**: Supports standard LRC files and advanced `am-lyrics` web components for time-synced playback.
 - **Plain Text Lyrics**: Fallback to text lyrics if no sync data is available.
 - **Immersive Mode**: Full-screen player with large artwork and synchronized visual elements.
 
-### 🛡️ Privacy & Security
-- **Auto-Lock**: Automatically locks the interface after inactivity to secure your session.
-- **Secure Auth**: OAuth 2.0 integration with Google Drive for secure access.
-
-### 📊 Integrated Analytics
-- **Vercel Analytics**: Built-in privacy-friendly analytics to track app usage and performance.
-
 ### 📁 Advanced Library Management
-- **Folder Navigation**: Browse your entire Google Drive folder structure.
-- **Global Search**: Instantly find songs across all folders.
-- **Smart Sorting**: Sort by Name, Date, or Size.
-- **Favorites**: "Like" tracks to build a cross-folder collection of favorites.
-- **Smart Title Cleaning**: Automatically cleans up file names (removes extensions, numbers, "remix" suffixes, etc.) for a clean library view.
+- **Greedy Folder Artwork**: Automatically discovers folder covers by checking embedded art, Drive thumbnails, and subfolders.
+- **iTunes Discovery**: Integrated **iTunes Search API** to fetch high-quality artwork for tracks with missing local tags.
+- **Manual Cover Protection**: Upload custom folder covers that are strictly protected from automatic updates.
+- **Global Search**: Instantly find songs, albums, or artists across your entire collection.
+- **Favorites & Playlists**: Persistent user collections stored securely in a PostgreSQL backend.
+- **Smart Title Cleaning**: Automatically sanitizes filenames for a professional, clean library view.
 
 ---
 
@@ -101,17 +95,18 @@ Built with **React** and **Node.js**, DrivePlayer offers a premium listening exp
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **React 18** - UI Library
-- **Vite** - Next-gen build tool
-- **TailwindCSS** - Styling & Design System
-- **Framer Motion** - Animations (implied usage for smooth transitions)
-- **React Icons** - Iconography
-- **Vercel Analytics** - Performance monitoring
+- **React 18** - Component-based UI Architecture
+- **Vite** - High-performance build tooling
+- **TailwindCSS** - Premium Styling & Glassmorphism Design
+- **Framer Motion** - Fluid animations and state transitions
+- **React Icons** - Modern iconography (Io, Fa, Md)
 
 ### Backend
-- **Node.js & Express** - Server side logic
-- **GoogleAPIs** - Drive integration
-- **Music-Metadata** - Advanced audio metadata parsing (Bitrate, Sample Rate, etc.)
+- **Node.js & Express** - Scalable server-side logic
+- **PostgreSQL** - High-performance relational database for user data and metadata
+- **GoogleAPIs** - Seamless Google Drive & OAuth 2.0 integration
+- **Music-Metadata** - Deep audio analysis (Lossless/Hi-Res detection, Bitrate, Codec)
+- **iTunes Search API** - Robust external artwork resolution pipeline
 
 ---
 
@@ -121,9 +116,10 @@ Built with **React** and **Node.js**, DrivePlayer offers a premium listening exp
     - `Space`: Play/Pause
     - `F`: Toggle Full Screen
     - `N / P`: Next / Previous Track
-    - `Ctrl + L`: Lock App immediately
-- **Visualizer Customization**: The visualizer sensitivity and style are tuned for a balance between responsiveness and aesthetics.
-- **Favorites**: Your favorites are stored locally in the browser, meaning they persist even if you close the tab.
+    - `Ctrl + L`: Lock App session immediately
+- **Folder Art**: To set a custom cover, use the 3-dot menu on any folder and upload a PNG. These covers take priority and are never overwritten.
+- **Deep Sync**: If you notice missing metadata, use the **Rescan Library** button in settings to trigger a full background enrichment pass.
+- **Persistence**: Your favorites, playlists, and folder covers are stored securely in the database and synched across your devices.
 
 ---
 
