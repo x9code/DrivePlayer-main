@@ -20,63 +20,48 @@ import { AuthProvider, useAuth } from './context/AuthContext'; // [NEW]
 import AuthScreen from './components/AuthScreen'; // [NEW]
 import ResetPasswordScreen from './components/ResetPasswordScreen'; // [NEW]
 
+import { useTheme } from './hooks/useTheme';
+import { useLibrary } from './hooks/useLibrary';
+
 // Environment variable for API URL (Production vs Dev)
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 function AppContent() {
   const { user, token, logout, loading: authLoading } = useAuth(); // [NEW] Auth Hook
 
+  const {
+    themeColor, gradientEnabled, setGradientEnabled, extractColor
+  } = useTheme();
 
+  const {
+    files, loading, currentFolderId, currentFolderName,
+    likedSongs, playlists, playCounts,
+    setCurrentFolderId, setCurrentFolderName, setFiles, setLoading,
+    fetchFiles, searchFiles, refreshPlaylists, setLikedSongs,
+    rootFolderId, scrollPositions
+  } = useLibrary(token);
 
-  const [files, setFiles] = useState([])
-  const [loading, setLoading] = useState(true)
   const [currentSong, setCurrentSong] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [currentFolderId, setCurrentFolderId] = useState(null)
-  const [currentFolderName, setCurrentFolderName] = useState('Library'); // Default title
-  const rootFolderId = useRef(null); // Track root folder ID to hide back button
+
+  // Extract color on song change
+  useEffect(() => {
+    extractColor(currentSong?.id);
+  }, [currentSong?.id]);
   const mainScrollRef = useRef(null); // Ref for main scroll container
   // --- Queue System ---
   const [queue, setQueue] = useState([]);
 
-  // Favorites State (Now fetched from API)
-  const [likedSongs, setLikedSongs] = useState([]);
-
-  // Fetch Favorites on Auth
-  useEffect(() => {
-    if (user) {
-      axios.get(`${API_BASE}/api/favorites`).then(res => setLikedSongs(res.data)).catch(console.error);
-    }
-  }, [user]);
-
-  // Playlist State [NEW]
-  const [playlists, setPlaylists] = useState([]);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
-  // Play Counts State (Persisted in localStorage)
-  const [playCounts, setPlayCounts] = useState(() => {
-    const saved = localStorage.getItem('driveplayer_playcounts');
-    try {
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      console.error("Failed to parse play counts", e);
-      return {};
-    }
-  });
+  // Mobile Detection
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
-    localStorage.setItem('driveplayer_playcounts', JSON.stringify(playCounts));
-  }, [playCounts]);
-
-  const refreshPlaylists = useCallback(() => {
-    if (user) {
-      axios.get(`${API_BASE}/api/playlists`).then(res => setPlaylists(res.data)).catch(console.error);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    refreshPlaylists();
-  }, [refreshPlaylists]);
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleCreatePlaylist = async (name) => {
     try {
@@ -116,26 +101,21 @@ function AppContent() {
     if (id === null) {
       handleGoHome();
     } else if (id === 'favorites') {
-      // Manually trigger favorite view logic
       setSearchQuery('');
       setIsSearching(false);
       setCurrentFolderId('favorites');
       setFiles(likedSongs);
       setCurrentFolderName('Favorites');
-      loading && setLoading(false); // Ensure loading is off
+      loading && setLoading(false);
       window.history.pushState({ folderId: 'favorites' }, '', '?folder=favorites');
     } else if (id === 'charts') {
-      // Charts View
       setSearchQuery('');
       setIsSearching(false);
       setCurrentFolderId('charts');
-      // Fetch and sort logic is inside fetchFiles or handled here
       fetchFiles('charts');
-      setCurrentFolderName('Top 20 Charts');
       setCurrentFolderName('Top 20 Charts');
       window.history.pushState({ folderId: 'charts' }, '', '?folder=charts');
     } else if (id === 'profile') {
-      // Profile View
       setSearchQuery('');
       setIsSearching(false);
       setCurrentFolderId('profile');
@@ -143,11 +123,9 @@ function AppContent() {
       loading && setLoading(false);
       window.history.pushState({ folderId: 'profile' }, '', '?folder=profile');
     } else if (id.startsWith('lib:')) {
-      // Library routes (Songs, Albums, Artists)
       handleFolderClick(id);
     } else {
-      // Playlist
-      const playlist = playlists.find(p => p.id === String(id)); // Ensure string comparison
+      const playlist = playlists.find(p => p.id === String(id));
       if (playlist) {
         setSearchQuery('');
         setIsSearching(false);
@@ -158,149 +136,6 @@ function AppContent() {
         window.history.pushState({ folderId: id }, '', `?folder=${id}`);
       }
     }
-  };
-
-  // Theme State
-  const [themeColor, setThemeColor] = useState('224, 133, 224'); // Default Pink-Lavender
-
-  useEffect(() => {
-    // Apply theme to CSS variable
-    document.documentElement.style.setProperty('--theme-color', themeColor);
-  }, [themeColor]);
-
-  // Gradient Background State
-  const [gradientEnabled, setGradientEnabled] = useState(() => {
-    return localStorage.getItem('driveplayer_gradient') === 'true';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('driveplayer_gradient', gradientEnabled);
-  }, [gradientEnabled]);
-
-
-
-  // Mobile Detection
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Extract Vibrant Color from Album Art
-  useEffect(() => {
-    if (!currentSong) {
-      setThemeColor('224, 133, 224');
-      return;
-    }
-
-    // Debounce to improve performance on rapid skips
-    const timer = setTimeout(() => {
-      const img = new Image();
-      img.crossOrigin = "Anonymous";
-      img.src = `${API_BASE}/api/thumbnail/${currentSong.id}`;
-
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = 10;
-          canvas.height = 10;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, 10, 10);
-
-          const imageData = ctx.getImageData(0, 0, 10, 10).data;
-          let maxScore = -1;
-          let bestR = 29, bestG = 185, bestB = 84;
-
-          for (let i = 0; i < imageData.length; i += 4) {
-            const r = imageData[i];
-            const g = imageData[i + 1];
-            const b = imageData[i + 2];
-
-            // Calculate HSL components
-            const max = Math.max(r, g, b);
-            const min = Math.min(r, g, b);
-            const l = (max + min) / 2 / 255;
-            const delta = max - min;
-            const s = (max === min) ? 0 : delta / (1 - Math.abs(2 * l - 1));
-
-            // Score: Favor Saturation, penalize extremely dark/light pixels
-            // We want l between 0.15 and 0.9 (avoid pitch black and pure white)
-            if (l < 0.15 || l > 0.9) continue;
-
-            const score = s * 10; // Prioritize saturation heavily
-
-            if (score > maxScore) {
-              maxScore = score;
-              bestR = r;
-              bestG = g;
-              bestB = b;
-            }
-          }
-
-          // Post-process: Force minimum brightness
-          const [finalR, finalG, finalB] = forceBrightColor(bestR, bestG, bestB);
-          setThemeColor(`${finalR}, ${finalG}, ${finalB}`);
-
-        } catch (e) {
-          console.warn("Color extraction failed", e);
-          setThemeColor('224, 133, 224');
-        }
-      };
-
-      img.onerror = () => {
-        setThemeColor('224, 133, 224');
-      };
-    }, 500); // 500ms delay
-
-    return () => clearTimeout(timer);
-  }, [currentSong]);
-
-  // Helper: Boost lightness if too dark (RGB -> HSL -> RGB)
-  const forceBrightColor = (r, g, b) => {
-    // 1. Convert to HSL
-    r /= 255; g /= 255; b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h, s, l = (max + min) / 2;
-
-    if (max === min) {
-      h = s = 0; // achromatic
-    } else {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) {
-        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-        case g: h = (b - r) / d + 2; break;
-        case b: h = (r - g) / d + 4; break;
-      }
-      h /= 6;
-    }
-
-    // 2. Boost Lightness if needed (Ensure at least 50% lightness)
-    if (l < 0.5) l = 0.55;
-
-    // 3. Convert back to RGB
-    let r1, g1, b1;
-    if (s === 0) {
-      r1 = g1 = b1 = l;
-    } else {
-      const hue2rgb = (p, q, t) => {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1 / 6) return p + (q - p) * 6 * t;
-        if (t < 1 / 2) return q;
-        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-        return p;
-      };
-      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-      const p = 2 * l - q;
-      r1 = hue2rgb(p, q, h + 1 / 3);
-      g1 = hue2rgb(p, q, h);
-      b1 = hue2rgb(p, q, h - 1 / 3);
-    }
-
-    return [Math.round(r1 * 255), Math.round(g1 * 255), Math.round(b1 * 255)];
   };
 
   const toggleLike = async (song) => {
@@ -348,8 +183,6 @@ function AppContent() {
   }, [viewMode]);
 
   const searchTimeout = useRef(null);
-  const fileCache = useRef({}); // Cache for folder contents
-  const scrollPositions = useRef({}); // Track scroll positions by folder ID
 
   // Sorting Logic
   const sortedFiles = useMemo(() => {
@@ -421,188 +254,7 @@ function AppContent() {
     return cleanTitle(fileName, getCommonArtistTerms);
   }, [getCommonArtistTerms]);
 
-  // Fetch files (songs + folders)
-  const fetchFiles = async (folderId = null) => {
-    const cacheKey = folderId || 'root';
-
-    // Scroll saving moved to handleFolderClick/navigation events
-
-    // 1. Check Cache
-    if (fileCache.current[cacheKey]) {
-
-      setFiles(fileCache.current[cacheKey].files);
-      setCurrentFolderName(fileCache.current[cacheKey].folderName);
-      setLoading(false);
-      return;
-    }
-
-    // Special Case: Favorites
-    if (folderId === 'favorites') {
-      setFiles(likedSongs);
-      setCurrentFolderName('Favorites');
-      setLoading(false);
-      return;
-    }
-
-    // Special Case: Playlists [NEW]
-    const playlist = playlists.find(p => p.id === String(folderId));
-    if (playlist) {
-      // Fetch songs for this playlist (TODO: Backend endpoint for playlist songs)
-      // For now, if we don't have a backend endpoint returning songs with the playlist, 
-      // we might need to change how we fetch.
-      // Assuming GET /api/playlists returns metadata, we need to fetch items.
-      // Let's assume for now we don't have song list in 'playlists' state efficiently yet.
-      // We'll rely on a future update to fetch playlist contents.
-      // TEMPORARY: Just clear or show empty until we implement GET /api/playlists/:id
-      setFiles([]);
-      setCurrentFolderName(playlist.name);
-      setLoading(false);
-      return;
-    }
-
-    // Special Case: Charts [NEW]
-    if (folderId === 'charts') {
-      setLoading(true);
-      try {
-        // Ensure we have root ID or just fetch all recursive
-        let root = rootFolderId.current;
-        if (!root) {
-          const rootRes = await axios.get(`${API_BASE}/api/files`);
-          root = rootRes.data.folderId;
-          rootFolderId.current = root;
-        }
-
-        const res = await axios.get(`${API_BASE}/api/files/recursive?folderId=${root}`);
-        let allFiles = res.data.files;
-
-        // Filter songs
-        const songs = allFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
-
-        // Sort by Play Count (Descending)
-        songs.sort((a, b) => {
-          const countA = playCounts[a.id] || 0;
-          const countB = playCounts[b.id] || 0;
-          return countB - countA;
-        });
-
-        // Top 20
-        setFiles(songs.slice(0, 20));
-        setCurrentFolderName('Top 20 Charts');
-
-      } catch (error) {
-        console.error("Charts fetch error", error);
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    // Special Case: Library Views [NEW]
-    if (folderId && folderId.startsWith('lib:')) {
-      setLoading(true);
-      try {
-        // Ensure we have root ID
-        let root = rootFolderId.current;
-        if (!root) {
-          // Quick fetch to get root ID if missing
-          const rootRes = await axios.get(`${API_BASE}/api/files`);
-          root = rootRes.data.folderId;
-          rootFolderId.current = root;
-        }
-
-        // Always fetch all files recursively for library views
-        // TODO: Cache this response specifically for library?
-        const res = await axios.get(`${API_BASE}/api/files/recursive?folderId=${root}`);
-        let allFiles = res.data.files;
-        // Filter out folders from the song list perspectives
-        // (Albums view might use them, but our current AlbumGrid uses file.album metadata string)
-
-        if (folderId === 'lib:songs') {
-          setCurrentFolderName('All Songs');
-          setFiles(allFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder'));
-        } else if (folderId === 'lib:albums') {
-          setCurrentFolderName('Albums');
-          setFiles(allFiles); // Pass all, Grid handles grouping
-        } else if (folderId === 'lib:artists') {
-          setCurrentFolderName('Artists');
-          setFiles(allFiles);
-        } else if (folderId.startsWith('lib:artist:')) {
-          const artistName = decodeURIComponent(folderId.substring('lib:artist:'.length));
-          setCurrentFolderName(artistName);
-          // Filter by artist - Handle multi-artist strings
-          setFiles(allFiles.filter(f => {
-            if (!f.artist) return false;
-            // Check if exact match OR if it's one of the split artists
-            if (f.artist === artistName) return true;
-
-            const artists = f.artist
-              .split(/[;,\/]|\s+feat\.?\s+|\s+ft\.?\s+|\s+&\s+/i)
-              .map(a => a.trim());
-            return artists.includes(artistName);
-          }));
-        } else if (folderId.startsWith('lib:album:')) {
-          const album = decodeURIComponent(folderId.split(':')[2]);
-          setCurrentFolderName(album);
-          setFiles(allFiles.filter(f => (f.album || "Unknown Album") === album));
-        }
-
-      } catch (error) {
-        console.error("Library fetch error:", error);
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const url = folderId
-        ? `${API_BASE}/api/files?folderId=${folderId}`
-        : `${API_BASE}/api/files`;
-
-      const res = await axios.get(url);
-      setFiles(res.data.files || []);
-      setCurrentFolderName(res.data.folderName || 'Library');
-
-      // 2. Update Cache
-      fileCache.current[cacheKey] = { files: res.data.files, folderName: res.data.folderName || 'Library' };
-
-      // Update current folder id if not set (initial load)
-      if (!folderId && res.data.folderId) {
-        if (!rootFolderId.current) {
-          rootFolderId.current = res.data.folderId;
-        }
-        setCurrentFolderId(res.data.folderId);
-        // Also cache under the actual ID for future reference
-        fileCache.current[res.data.folderId] = { files: res.data.files, folderName: res.data.folderName || 'Library' };
-      }
-    } catch (error) {
-      console.error("Error fetching files:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Search function
-  const searchFiles = async (query) => {
-    if (!query.trim()) {
-      setIsSearching(false);
-      fetchFiles(currentFolderId);
-      return;
-    }
-
-    setLoading(true);
-    setIsSearching(true);
-    try {
-      const res = await axios.get(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
-      setFiles(res.data || []);
-    } catch (error) {
-      console.error("Search error:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
+  // Handle Search
   const handleSearchChange = (e) => {
     const q = e.target.value;
     setSearchQuery(q);
@@ -625,208 +277,22 @@ function AppContent() {
     fetchFiles(currentFolderId);
   };
 
-  useEffect(() => {
-    // Check URL params on load
-    const params = new URLSearchParams(window.location.search);
-    const folderId = params.get('folder');
-
-
-
-    if (folderId) {
-      setCurrentFolderId(folderId);
-      fetchFiles(folderId);
-    } else {
-      fetchFiles();
-    }
-  }, []);
-  // Disable browser's automatic scroll restoration - REMOVED to let browser handle history
-  // useEffect(() => {
-  //   if ('scrollRestoration' in window.history) {
-  //     window.history.scrollRestoration = 'manual';
-  //   }
-  // }, []);
-
-  // Handle scroll position on folder change
-  useLayoutEffect(() => {
-    if (mainScrollRef.current) {
-      const scrollContainer = mainScrollRef.current;
-      const key = currentFolderId || 'root';
-      const savedPosition = scrollPositions.current[key];
-
-      console.log(`[Scroll Restore] Key: ${key}, Saved: ${savedPosition}, Loading: ${loading}`);
-
-      if (savedPosition !== undefined) {
-        // Restore saved position
-        console.log(`[Scroll Restore] Restoring to ${savedPosition}`);
-        scrollContainer.scrollTop = savedPosition;
-      } else {
-        // No saved position -> Scroll to top ONLY if not loading (prevents jump)
-        // If loading, we keep the previous scroll position until new content arrives
-        if (!loading) {
-          console.log(`[Scroll Restore] No saved position & Loaded. Resetting to 0`);
-          scrollContainer.scrollTop = 0;
-        }
-      }
-    }
-  }, [currentFolderId, loading]);
-
-  // Helper to save current scroll position
-  const saveScrollPosition = () => {
-    if (mainScrollRef.current) {
-      const key = currentFolderId || 'root';
-      const scrollTop = mainScrollRef.current.scrollTop;
-      if (scrollTop > 0) {
-        console.log(`[Scroll Save] Saving ${scrollTop} for key: ${key}`);
-        scrollPositions.current[key] = scrollTop;
-      }
-    }
-  };
-
-  // Handle Browser Back Button (Android Gesture)
-  useEffect(() => {
-    const handlePopState = (event) => {
-      const state = event.state;
-      // We don't save here because the view has likely already changed or about to. 
-      // The browser might have already restored scroll if we didn't disable it.
-
-      if (state && state.folderId) {
-        if (state.folderId === 'favorites') {
-          setCurrentFolderId('favorites');
-          setFiles(likedSongs);
-          setCurrentFolderName('Favorites');
-          setLoading(false);
-        } else if (state.folderId === 'charts') {
-          setCurrentFolderId('charts');
-          fetchFiles('charts');
-        } else {
-          setCurrentFolderId(state.folderId);
-          fetchFiles(state.folderId);
-          fetchFiles(state.folderId);
-        }
-      } else if (state && state.folderId === 'profile') {
-        setCurrentFolderId('profile');
-        setCurrentFolderName('Profile');
-        setLoading(false);
-      } else {
-        // Back to root
-        setCurrentFolderId(null);
-        fetchFiles(null);
-        // Ensure files are reset to root if we were in favorites without a real ID
-        if (!state) fetchFiles(null);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [likedSongs]);
-
+  // Navigation Logic
   const handleFolderClick = (folderId) => {
-    // Save scroll position BEFORE changing state/view
-    saveScrollPosition();
+    if (mainScrollRef.current) {
+      const key = currentFolderId || 'root';
+      scrollPositions.current[key] = mainScrollRef.current.scrollTop;
+    }
 
     if (isSearching) {
       setSearchQuery('');
       setIsSearching(false);
     }
 
-    // Show loading immediately for visual feedback
     setLoading(true);
-
-    // Push state so Back button works
     window.history.pushState({ folderId }, '', `?folder=${folderId}`);
-
-    // Internal update
     setCurrentFolderId(folderId);
     fetchFiles(folderId);
-  };
-
-  // Reset Scroll on Folder Change
-  useEffect(() => {
-    if (mainScrollRef.current) {
-      mainScrollRef.current.scrollTop = 0;
-    }
-  }, [files]);
-
-  // Listen for song ended event to auto-play next
-  useEffect(() => {
-    const handleSongEnded = () => {
-      handleNext(true); // Auto advance
-    };
-    window.addEventListener('audio-ended', handleSongEnded);
-    return () => window.removeEventListener('audio-ended', handleSongEnded);
-  }, [currentSong, isShuffle, repeatMode, queue]); // queue dependency is important here
-
-  // Track Play Counts
-  useEffect(() => {
-    if (currentSong && isPlaying) {
-      // Simple logic: If a song STARTS playing, count it.
-      // Ideally we'd wait for 30s or end, but for simplicity:
-
-      // We use a timeout to ensure it's not just a skip
-      const timer = setTimeout(() => {
-        setPlayCounts(prev => ({
-          ...prev,
-          [currentSong.id]: (prev[currentSong.id] || 0) + 1
-        }));
-      }, 5000); // 5 seconds threshold to count as a play
-
-      return () => clearTimeout(timer);
-    }
-  }, [currentSong?.id]); // Only trigger on ID change (new song)
-
-
-
-  // Handle Play (Single Song Click in Current View)
-  const handlePlay = (song) => {
-    if (currentSong?.id === song.id) {
-      setIsPlaying(!isPlaying);
-    } else {
-      // Set Queue to current view's songs
-      const currentSongs = sortedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
-      setQueue(currentSongs);
-
-      // Inject clean title if missing (using context-aware cleaner)
-      const cleanedTitle = cleanTitleCallback(song.name);
-      const songWithTitle = {
-        ...song,
-        title: song.title || cleanedTitle
-      };
-
-      setCurrentSong(songWithTitle);
-      setIsPlaying(true);
-    }
-  };
-
-  // Handle Folder Play (Background Queue)
-  const handleFolderPlay = async (folderId) => {
-    // 1. Fetch files specifically for this folder
-    // Note: We do NOT navigate (pushState/setCurrentFolderId)
-    // We do NOT setFiles (so view stays same)
-
-    try {
-      const url = `${API_BASE}/api/files/recursive?folderId=${folderId}`;
-      const res = await axios.get(url);
-
-      const fetchedFiles = res.data.files;
-      // Filter for songs (already filtered by backend, but safe to keep)
-      const songList = fetchedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
-
-      if (songList.length > 0) {
-        // 2. Set Queue & Start Shuffle Play
-        setQueue(songList);
-        setIsShuffle(true);
-
-        const randomIndex = Math.floor(Math.random() * songList.length);
-        const randomSong = songList[randomIndex];
-        // Inject clean title
-        setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
-        setIsPlaying(true);
-      } else {
-        alert("No audio files found in this folder.");
-      }
-    } catch (error) {
-      console.error("Error fetching folder for playback:", error);
-    }
   };
 
   const handleBack = () => {
@@ -834,31 +300,76 @@ function AppContent() {
       clearSearch();
       return;
     }
-    // Trigger browser back, which triggers 'popstate' listener above
     window.history.back();
   };
 
+  // Playback Handlers
+  const handlePlay = (song) => {
+    if (currentSong?.id === song.id) {
+      setIsPlaying(!isPlaying);
+    } else {
+      const currentSongs = sortedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+      setQueue(currentSongs);
+      setCurrentSong({ ...song, title: song.title || cleanTitleCallback(song.name) });
+      setIsPlaying(true);
+    }
+  };
+
+  const handleFolderPlay = async (folderId) => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/files/recursive?folderId=${folderId}`);
+      const songList = res.data.files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+      if (songList.length > 0) {
+        setQueue(songList);
+        setIsShuffle(true);
+        const randomIndex = Math.floor(Math.random() * songList.length);
+        const randomSong = songList[randomIndex];
+        setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
+        setIsPlaying(true);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleShufflePlay = async () => {
+    const songList = sortedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+    if (songList.length > 0) {
+      setQueue(songList);
+      const randomIndex = Math.floor(Math.random() * songList.length);
+      setCurrentSong(songList[randomIndex]);
+      setIsPlaying(true);
+      setIsShuffle(true);
+      return;
+    }
+
+    const rootId = rootFolderId.current || currentFolderId;
+    if (rootId) {
+      setLoading(true);
+      try {
+        const res = await axios.get(`${API_BASE}/api/files/recursive?folderId=${rootId}`);
+        const allSongs = res.data.files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+        if (allSongs.length > 0) {
+          setQueue(allSongs);
+          setIsShuffle(true);
+          const randomIndex = Math.floor(Math.random() * allSongs.length);
+          setCurrentSong({ ...allSongs[randomIndex], title: allSongs[randomIndex].title || cleanTitleCallback(allSongs[randomIndex].name) });
+          setIsPlaying(true);
+        }
+      } catch (e) { console.error(e); } finally { setLoading(false); }
+    }
+  };
 
   const handleNext = (auto = false) => {
     if (!currentSong) return;
-
-    // Use QUEUE if available, otherwise fallback to sortedFiles (legacy/safety)
     const activeList = queue.length > 0 ? queue : sortedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
-
     if (activeList.length === 0) return;
 
-    // Repeat One logic
     if (repeatMode === 2 && auto) {
-      // Re-find current song to be safe
-      const currentIndex = activeList.findIndex(s => s.id === currentSong.id);
-      if (currentIndex !== -1) setCurrentSong(activeList[currentIndex]);
       setIsPlaying(true);
       return;
     }
 
     if (isShuffle) {
       let randomIndex = Math.floor(Math.random() * activeList.length);
-      // Avoid repeating same song if possible
       if (activeList.length > 1 && activeList[randomIndex].id === currentSong.id) {
         randomIndex = (randomIndex + 1) % activeList.length;
       }
@@ -867,21 +378,13 @@ function AppContent() {
       return;
     }
 
-    // Normal Sequence
     const currentIndex = activeList.findIndex(s => s.id === currentSong.id);
-    // If song not in queue (e.g. queue changed), start from 0
-    const startIdx = currentIndex === -1 ? 0 : currentIndex;
-    const nextIndex = (startIdx + 1) % activeList.length;
-
-    // Stop at end if Repeat is Off
+    const nextIndex = (currentIndex + 1) % activeList.length;
     if (nextIndex === 0 && repeatMode === 0 && auto) {
       setIsPlaying(false);
       return;
     }
-
-    const nextSong = activeList[nextIndex];
-    // Inject clean title
-    setCurrentSong({ ...nextSong, title: nextSong.title || cleanTitleCallback(nextSong.name) });
+    setCurrentSong({ ...activeList[nextIndex], title: activeList[nextIndex].title || cleanTitleCallback(activeList[nextIndex].name) });
     setIsPlaying(true);
   };
 
@@ -898,102 +401,84 @@ function AppContent() {
     }
 
     const currentIndex = activeList.findIndex(s => s.id === currentSong.id);
-    const startIdx = currentIndex === -1 ? 0 : currentIndex;
-    const prevIndex = (startIdx - 1 + activeList.length) % activeList.length;
-    const prevSong = activeList[prevIndex];
-    // Inject clean title
-    setCurrentSong({ ...prevSong, title: prevSong.title || cleanTitleCallback(prevSong.name) });
+    const prevIndex = (currentIndex - 1 + activeList.length) % activeList.length;
+    setCurrentSong({ ...activeList[prevIndex], title: activeList[prevIndex].title || cleanTitleCallback(activeList[prevIndex].name) });
     setIsPlaying(true);
   };
 
-  const handleShufflePlay = async () => {
-    // Determine context: use current view
-    const songList = sortedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+  const toggleRepeat = () => setRepeatMode((prev) => (prev + 1) % 3);
 
-    // Case 1: Current view has songs
-    if (songList.length > 0) {
-      setQueue(songList);
-      const randomIndex = Math.floor(Math.random() * songList.length);
-      setCurrentSong(songList[randomIndex]);
-      setIsPlaying(true);
-      setIsShuffle(true);
-      return;
-    }
-
-    // Case 2: Current view has NO songs (e.g. Root or empty folder), do GLOBAL RECURSIVE SHUFFLE
-    const rootId = rootFolderId.current || currentFolderId;
-
-    if (rootId) {
-      setLoading(true);
-      try {
-        console.log("Starting Global Shuffle from Root:", rootId);
-
-        // TODO: distinct loading state for "Scanning Library..."
-        // For now, the spinner appears, which is good.
-
-        const url = `${API_BASE}/api/files/recursive?folderId=${rootId}`;
-        const res = await axios.get(url);
-
-        const fetchedFiles = res.data.files;
-        const allSongs = fetchedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
-
-        if (allSongs.length > 0) {
-          console.log(`Global Shuffle: Queued ${allSongs.length} songs.`);
-          setQueue(allSongs);
-          setIsShuffle(true);
-
-          const randomIndex = Math.floor(Math.random() * allSongs.length);
-          const randomSong = allSongs[randomIndex];
-          // Inject clean title
-          setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
-          setIsPlaying(true);
-        } else {
-          alert("No songs found in your library.");
-        }
-      } catch (error) {
-        console.error("Error doing global shuffle:", error);
-        alert(`Failed to shuffle library: ${error.response?.data?.error || error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      console.warn("Cannot shuffle: Root ID unknown.");
-    }
+  const handleAlbumPlay = (songs) => {
+    if (!songs || songs.length === 0) return;
+    setQueue(songs);
+    setIsShuffle(false);
+    setCurrentSong({ ...songs[0], title: songs[0].title || cleanTitleCallback(songs[0].name) });
+    setIsPlaying(true);
   };
 
-  const toggleRepeat = () => {
-    setRepeatMode((prev) => (prev + 1) % 3);
+  const handleAlbumShuffle = (songs) => {
+    if (!songs || songs.length === 0) return;
+    setQueue(songs);
+    setIsShuffle(true);
+    const randomIndex = Math.floor(Math.random() * songs.length);
+    const randomSong = songs[randomIndex];
+    setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
+    setIsPlaying(true);
+  };
+
+  const handleArtistPlay = (songs) => {
+    if (!songs || songs.length === 0) return;
+    setQueue(songs);
+    setIsShuffle(false);
+    setCurrentSong({ ...songs[0], title: songs[0].title || cleanTitleCallback(songs[0].name) });
+    setIsPlaying(true);
+  };
+
+  const handleArtistShuffle = (songs) => {
+    if (!songs || songs.length === 0) return;
+    setQueue(songs);
+    setIsShuffle(true);
+    const randomIndex = Math.floor(Math.random() * songs.length);
+    const randomSong = songs[randomIndex];
+    setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
+    setIsPlaying(true);
   };
 
   const handleSortChange = (option) => {
     if (sortOption === option) {
-      // Toggle direction
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortOption(option);
-      setSortDirection('asc'); // Default to asc for new option
+      setSortDirection('asc');
     }
   };
 
-
-
-
-
   const handleRenamePlaylist = (id, newName) => {
-    PlaylistManager.rename(id, newName);
-    refreshPlaylists();
+    axios.put(`${API_BASE}/api/playlists/${id}`, { name: newName }).then(refreshPlaylists).catch(console.error);
   };
 
-  // Sidebar Collapse State
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    return localStorage.getItem('driveplayer_sidebar_collapsed') === 'true';
-  });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem('driveplayer_sidebar_collapsed') === 'true');
 
   useEffect(() => {
     localStorage.setItem('driveplayer_sidebar_collapsed', isSidebarCollapsed);
   }, [isSidebarCollapsed]);
 
   const toggleSidebar = () => setIsSidebarCollapsed(!isSidebarCollapsed);
+
+  useEffect(() => {
+    const handleSongEnded = () => handleNext(true);
+    window.addEventListener('audio-ended', handleSongEnded);
+    return () => window.removeEventListener('audio-ended', handleSongEnded);
+  }, [currentSong, isShuffle, repeatMode, queue]);
+
+  useEffect(() => {
+    if (currentSong && isPlaying) {
+      const timer = setTimeout(() => {
+        setPlayCounts(prev => ({ ...prev, [currentSong.id]: (prev[currentSong.id] || 0) + 1 }));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentSong?.id]);
 
   return (
     <div className="min-h-screen bg-transparent text-white selection:bg-primary selection:text-black relative z-0">
@@ -1226,12 +711,16 @@ function AppContent() {
           <AlbumGrid
             files={files} // Use raw files for grid grouping
             onAlbumClick={(name) => handleFolderClick('lib:album:' + encodeURIComponent(name))}
+            onPlay={handleAlbumPlay}
+            onShuffle={handleAlbumShuffle}
             viewMode={viewMode}
           />
         ) : currentFolderId === 'lib:artists' ? (
           <ArtistGrid
             files={files}
             onArtistClick={(name) => handleFolderClick('lib:artist:' + encodeURIComponent(name))}
+            onPlay={handleArtistPlay}
+            onShuffle={handleArtistShuffle}
           />
         ) : (
           <SongList

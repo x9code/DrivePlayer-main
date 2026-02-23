@@ -24,9 +24,10 @@ class MetadataService {
         this.cacheDir = cacheDir;
         this.libraryService = libraryService;
 
-        // Remove file-based persistence paths
         this.persistentCache = {};
         this.folderCovers = {};
+        this.manualCovers = new Set();
+        this.manualCoversDir = path.join(__dirname, '..', 'custom_covers');
 
         this.scanStatus = {
             active: false,
@@ -40,6 +41,35 @@ class MetadataService {
     async init() {
         await this.loadPersistence();
         await this.loadFolderCovers();
+        this.loadManualCovers();
+    }
+
+    /**
+     * Scan custom_covers directory for manually set artwork
+     */
+    loadManualCovers() {
+        try {
+            if (!fs.existsSync(this.manualCoversDir)) {
+                fs.mkdirSync(this.manualCoversDir, { recursive: true });
+            }
+            const files = fs.readdirSync(this.manualCoversDir);
+            this.manualCovers = new Set(
+                files
+                    .filter(f => f.endsWith('.png'))
+                    .map(f => f.replace('.png', ''))
+            );
+            console.log(`[Metadata] Detected ${this.manualCovers.size} manual folder covers.`);
+        } catch (error) {
+            console.error('[Metadata] Error loading manual covers:', error.message);
+        }
+    }
+
+    registerManualCover(folderId) {
+        this.manualCovers.add(folderId);
+    }
+
+    unregisterManualCover(folderId) {
+        this.manualCovers.delete(folderId);
     }
 
     /**
@@ -128,51 +158,76 @@ class MetadataService {
         });
 
         // 2. Recursive Resolver
-        // Returns the File ID of the best cover found
-        const resolveCover = (folderId, depth = 0) => {
-            if (depth > 5) return null; // Safety break
+        // Returns an Array of File IDs that could serve as covers
+        const resolveCover = (folderId, depth = 0, collected = new Set()) => {
+            if (depth > 5 || collected.size >= 5) return Array.from(collected);
 
             const children = childrenMap[folderId] || [];
 
             // A. Check for DIRECT files first
             const directFiles = children.filter(c => c.mimeType !== 'application/vnd.google-apps.folder');
 
-            // Preference 1: Direct file WITH artwork
-            const artFile = directFiles.find(f => {
+            // Preference 1: Direct files WITH embedded artwork (found via scan)
+            const artFiles = directFiles.filter(f => {
                 const meta = this.persistentCache[f.id];
                 return meta && meta.artwork === true;
             });
-            if (artFile) return artFile.id;
+            artFiles.forEach(f => { if (collected.size < 5) collected.add(f.id); });
 
-            // Preference 2: Sub-folders (Bubble Up) - Prefer sub-folders that HAVE artwork
-            const subFolders = children.filter(c => c.mimeType === 'application/vnd.google-apps.folder');
-
-            for (const sub of subFolders) {
-                // Check if we already have a calculated cover for this subfolder
-                let subCoverId = this.folderCovers[sub.id];
-
-                // If not, try to resolve it now (DFS)
-                if (!subCoverId) {
-                    subCoverId = resolveCover(sub.id, depth + 1);
-                }
-
-                // If found a valid cover from subfolder, usage it!
-                if (subCoverId) return subCoverId;
+            // Preference 2: Direct files with Google Drive thumbnailLink (fallback if no embedded art yet)
+            if (collected.size < 5) {
+                const thumbFiles = directFiles.filter(f => f.thumbnailLink);
+                thumbFiles.forEach(f => { if (collected.size < 5) collected.add(f.id); });
             }
 
-            // Preference 3: Fallback to ANY direct file if no artwork found anywhere
-            // We do this last to ensure we don't pick a "no-art" file if a subfolder has "good-art"
-            return directFiles[0] ? directFiles[0].id : null;
+            // Preference 3: Sub-folders (Bubble Up)
+            if (collected.size < 5) {
+                const subFolders = children.filter(c => c.mimeType === 'application/vnd.google-apps.folder');
+
+                for (const sub of subFolders) {
+                    const subCovers = this.folderCovers[sub.id];
+                    if (subCovers) {
+                        const ids = Array.isArray(subCovers) ? subCovers : (typeof subCovers === 'string' ? subCovers.split(',') : [subCovers]);
+                        ids.forEach(id => { if (collected.size < 5 && id) collected.add(id); });
+                    } else {
+                        resolveCover(sub.id, depth + 1, collected);
+                    }
+                    if (collected.size >= 5) break;
+                }
+            }
+
+            // Preference 4: Greedy Fallback - Always include the first few songs if we don't have enough art
+            if (collected.size < 5) {
+                // Add first few audio files (to let frontend try to fetch art)
+                const audioFiles = directFiles.slice(0, 5);
+                audioFiles.forEach(f => { if (collected.size < 5) collected.add(f.id); });
+            }
+
+            return Array.from(collected);
         };
 
         // 3. Process all folders found in this batch + their parents (via childrenMap)
         Object.keys(childrenMap).forEach(folderId => {
-            const idealCover = resolveCover(folderId);
+            // SKIP folders with manual covers
+            if (this.manualCovers.has(folderId)) {
+                // If we previously had a calculated cover, remove it (manual takes precedence)
+                if (this.folderCovers[folderId]) {
+                    delete this.folderCovers[folderId];
+                    changed = true;
+                }
+                return;
+            }
 
-            if (idealCover) {
+            const idealCovers = resolveCover(folderId);
+
+            if (idealCovers.length > 0) {
                 // Update if different from current
-                if (this.folderCovers[folderId] !== idealCover) {
-                    this.folderCovers[folderId] = idealCover;
+                const currentCovers = this.folderCovers[folderId];
+                const currentStr = Array.isArray(currentCovers) ? currentCovers.join(',') : (currentCovers || '');
+                const nextStr = idealCovers.join(',');
+
+                if (currentStr !== nextStr) {
+                    this.folderCovers[folderId] = idealCovers;
                     changed = true;
                 }
             }
@@ -365,27 +420,19 @@ class MetadataService {
             await new Promise(r => setTimeout(r, 50));
         }
 
+        // Phase 2: Enrich with Online Art (Async, don't block main flow too long)
+        console.log('[Metadata] Checks for missing online art...');
+        await ArtService.enrichMissingArt(enrichedSongs);
+
         this.scanStatus.active = false;
 
-        if (updatedCount > 0) {
-            console.log(`[Metadata] Enrichment complete. Updated ${updatedCount} files.`);
-            // No global save needed as DB does it incrementally
+        console.log(`[Metadata] Enrichment complete. Updated ${updatedCount} files.`);
 
-            // Re-evaluate folder covers now that we have fresh metadata/artwork status
-            this.updateFolderCovers(songs);
+        // Re-evaluate folder covers now that we have fresh metadata AND online art
+        this.updateFolderCovers(files);
 
-            // IMPORTANT: Clear recursive cache to force re-fetch with enriched metadata
-            this.clearRecursiveCache();
-        } else {
-            console.log(`[Metadata] Enrichment complete. No new updates.`);
-            // Still run update covers update in case logic changed or files reordered
-            // Still run update covers update in case logic changed or files reordered
-            this.updateFolderCovers(songs);
-        }
-
-        // Phase 2: Enrich with Online Art (Async, don't block main flow too long)
-        console.log('[Metadata] checks for missing online art...');
-        await ArtService.enrichMissingArt(enrichedSongs);
+        // IMPORTANT: Clear recursive cache to force re-fetch with enriched metadata
+        this.clearRecursiveCache();
     }
 
     /**
@@ -443,15 +490,19 @@ class MetadataService {
         let artist = sanitizeString(common.artist)
             || sanitizeString(common.albumartist);
 
-        // [NEW] Fallback for artist if missing
-        if (!artist) {
-            artist = parseArtistFromFilename(filename);
+        // [NEW] Fallback for artist if missing or literally "Unknown Artist"
+        if (!artist || artist.toLowerCase() === 'unknown artist' || artist.toLowerCase() === 'unknown') {
+            const parsedArtist = parseArtistFromFilename(filename);
+            if (parsedArtist) {
+                artist = parsedArtist;
+            } else if (artist && artist.toLowerCase() === 'unknown artist') {
+                artist = null; // Clear it to allow the generic "Unknown Artist" assignment below
+            }
         }
 
         artist = artist || "Unknown Artist";
 
-        const album = sanitizeString(common.album)
-            || "Unknown Album";
+        const album = sanitizeString(common.album) || null;
 
         const year = common.year || (common.date ? String(common.date).substring(0, 4) : null);
         const genre = common.genre && common.genre.length > 0 ? common.genre.join(', ') : null;
@@ -590,6 +641,17 @@ class MetadataService {
     enrichList(files) {
         return files.map(file => {
             let enriched = { ...file };
+
+            // [NEW] Strict Bypass for Folders so they don't get "Unknown Artist" tags
+            if (enriched.mimeType === 'application/vnd.google-apps.folder') {
+                enriched.hasCustomCover = this.manualCovers.has(enriched.id);
+                const covers = this.folderCovers[enriched.id];
+                if (covers) {
+                    enriched.coverSongIds = Array.isArray(covers) ? covers : (typeof covers === 'string' ? covers.split(',') : [covers]);
+                }
+                return enriched;
+            }
+
             const cached = this.persistentCache[file.id];
 
             if (cached) {
@@ -615,9 +677,12 @@ class MetadataService {
                 enriched.album = 'Unknown Album';
             }
 
-            // Inject Folder Cover if it's a folder
-            if (enriched.mimeType === 'application/vnd.google-apps.folder' && this.folderCovers[enriched.id]) {
-                enriched.firstSongId = this.folderCovers[enriched.id];
+            // Inject Folder Cover if it's a folder (redundancy check)
+            if (enriched.mimeType === 'application/vnd.google-apps.folder') {
+                const covers = this.folderCovers[enriched.id];
+                if (covers) {
+                    enriched.coverSongIds = Array.isArray(covers) ? covers : (typeof covers === 'string' ? covers.split(',') : [covers]);
+                }
             }
 
             // Ensure picture property is populated from Drive thumbnail if not in metadata

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { IoDiscOutline, IoPersonOutline, IoMusicalNote, IoPlay, IoEllipsisVertical, IoCloudDownloadOutline, IoAlbumsOutline } from 'react-icons/io5';
+import { IoDiscOutline, IoPersonOutline, IoMusicalNote, IoPlay, IoEllipsisVertical, IoCloudDownloadOutline, IoAlbumsOutline, IoShuffle } from 'react-icons/io5';
 
-const AlbumCard = React.memo(({ album, onAlbumClick }) => {
+const AlbumCard = React.memo(({ album, onAlbumClick, onPlay, onShuffle }) => {
     const API_BASE = import.meta.env.VITE_API_URL || '';
     const [imageError, setImageError] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
@@ -27,14 +27,28 @@ const AlbumCard = React.memo(({ album, onAlbumClick }) => {
 
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
 
-                {/* Compact Play Button (Bottom-Right) */}
-                <div className="absolute right-2 bottom-2 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out z-10">
-                    <div
-                        className="bg-white/90 rounded-full p-2 text-black shadow-xl hover:scale-105 transition-transform hover:bg-white"
+                {/* Action Buttons (Bottom-Right) */}
+                <div className="absolute right-3 bottom-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out z-10 flex gap-2">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onShuffle(album.songs);
+                        }}
+                        className="bg-white/20 backdrop-blur-md rounded-full p-2.5 text-white shadow-xl hover:scale-110 transition-transform hover:bg-primary hover:text-black border border-white/10"
+                        title="Shuffle Album"
+                    >
+                        <IoShuffle size={18} />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onPlay(album.songs);
+                        }}
+                        className="bg-white rounded-full p-2.5 text-black shadow-xl hover:scale-110 transition-transform hover:bg-primary border border-white/10"
                         title="Play Album"
                     >
-                        <IoPlay size={16} className="pl-0.5 text-black" />
-                    </div>
+                        <IoPlay size={18} className="pl-0.5" />
+                    </button>
                 </div>
             </div>
 
@@ -83,7 +97,7 @@ const AlbumCard = React.memo(({ album, onAlbumClick }) => {
     );
 });
 
-const AlbumRow = React.memo(({ album, onAlbumClick }) => {
+const AlbumRow = React.memo(({ album, onAlbumClick, onPlay, onShuffle }) => {
     const API_BASE = import.meta.env.VITE_API_URL || '';
     const [imageError, setImageError] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
@@ -122,6 +136,27 @@ const AlbumRow = React.memo(({ album, onAlbumClick }) => {
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-2 relative">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onShuffle(album.songs);
+                    }}
+                    className="p-2 text-zinc-400 hover:text-primary transition-colors hover:bg-white/5 rounded-full"
+                    title="Shuffle"
+                >
+                    <IoShuffle size={18} />
+                </button>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onPlay(album.songs);
+                    }}
+                    className="p-2 text-zinc-400 hover:text-primary transition-colors hover:bg-white/5 rounded-full"
+                    title="Play"
+                >
+                    <IoPlay size={18} className="pl-0.5" />
+                </button>
+
                 {/* 3-Dot Menu */}
                 <div className="relative shrink-0">
                     <button
@@ -160,7 +195,7 @@ const AlbumRow = React.memo(({ album, onAlbumClick }) => {
     );
 });
 
-export const AlbumGrid = ({ files, onAlbumClick, viewMode = 'grid' }) => {
+export const AlbumGrid = ({ files, onAlbumClick, onPlay, onShuffle, viewMode = 'grid' }) => {
     const albums = useMemo(() => {
         const map = {};
         files.forEach(f => {
@@ -192,9 +227,21 @@ export const AlbumGrid = ({ files, onAlbumClick, viewMode = 'grid' }) => {
         }>
             {albums.map(album => (
                 viewMode === 'grid' ? (
-                    <AlbumCard key={album.name} album={album} onAlbumClick={onAlbumClick} />
+                    <AlbumCard
+                        key={album.name}
+                        album={album}
+                        onAlbumClick={onAlbumClick}
+                        onPlay={onPlay}
+                        onShuffle={onShuffle}
+                    />
                 ) : (
-                    <AlbumRow key={album.name} album={album} onAlbumClick={onAlbumClick} />
+                    <AlbumRow
+                        key={album.name}
+                        album={album}
+                        onAlbumClick={onAlbumClick}
+                        onPlay={onPlay}
+                        onShuffle={onShuffle}
+                    />
                 )
             ))}
         </div>
@@ -204,7 +251,7 @@ export const AlbumGrid = ({ files, onAlbumClick, viewMode = 'grid' }) => {
 // --- Artist Image Cache (client-side, per-session) ---
 const artistImageCache = {};
 
-const ArtistCard = React.memo(({ artist, onArtistClick }) => {
+const ArtistCard = React.memo(({ artist, onArtistClick, onPlay, onShuffle }) => {
     const API_BASE = import.meta.env.VITE_API_URL || '';
     const [imageUrl, setImageUrl] = useState(artistImageCache[artist.name] || null);
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -275,14 +322,28 @@ const ArtistCard = React.memo(({ artist, onArtistClick }) => {
 
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
 
-                {/* Play Button */}
-                <div className="absolute right-2 bottom-2 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out z-10">
-                    <div
-                        className="bg-white/90 rounded-full p-2 text-black shadow-xl hover:scale-105 transition-transform hover:bg-white"
+                {/* Action Buttons (Bottom-Right) */}
+                <div className="absolute right-3 bottom-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out z-10 flex gap-2">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onShuffle(artist.songs);
+                        }}
+                        className="bg-white/20 backdrop-blur-md rounded-full p-2.5 text-white shadow-xl hover:scale-110 transition-transform hover:bg-primary hover:text-black border border-white/10"
+                        title="Shuffle Artist"
+                    >
+                        <IoShuffle size={18} />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onPlay(artist.songs);
+                        }}
+                        className="bg-white rounded-full p-2.5 text-black shadow-xl hover:scale-110 transition-transform hover:bg-primary border border-white/10"
                         title="Play Artist"
                     >
-                        <IoPlay size={16} className="pl-0.5 text-black" />
-                    </div>
+                        <IoPlay size={18} className="pl-0.5" />
+                    </button>
                 </div>
             </div>
 
@@ -295,7 +356,7 @@ const ArtistCard = React.memo(({ artist, onArtistClick }) => {
     );
 });
 
-export const ArtistGrid = ({ files, onArtistClick }) => {
+export const ArtistGrid = ({ files, onArtistClick, onPlay, onShuffle }) => {
     const artists = useMemo(() => {
         const map = {};
 
@@ -343,7 +404,13 @@ export const ArtistGrid = ({ files, onArtistClick }) => {
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {artists.map(artist => (
-                        <ArtistCard key={artist.name} artist={artist} onArtistClick={onArtistClick} />
+                        <ArtistCard
+                            key={artist.name}
+                            artist={artist}
+                            onArtistClick={onArtistClick}
+                            onPlay={onPlay}
+                            onShuffle={onShuffle}
+                        />
                     ))}
                 </div>
             )}

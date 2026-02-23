@@ -129,7 +129,16 @@ class LibraryService {
     async getAllFiles() {
         const sql = `SELECT * FROM files WHERE is_trashed = 0`;
         const { rows } = await pool.query(sql);
-        return rows;
+        return this._normalizeRows(rows);
+    }
+
+    /**
+     * Get all files in a specific folder (children only, not recursive)
+     */
+    async getFilesInFolder(folderId) {
+        const sql = `SELECT * FROM files WHERE parent = $1 AND is_trashed = 0`;
+        const { rows } = await pool.query(sql, [folderId]);
+        return this._normalizeRows(rows);
     }
 
     /**
@@ -149,7 +158,7 @@ class LibraryService {
             AND is_trashed = 0
         `;
         const { rows } = await pool.query(sql, [folderId, folderId]);
-        return rows;
+        return this._normalizeRows(rows);
     }
 
     /**
@@ -158,7 +167,7 @@ class LibraryService {
     async getFile(id) {
         const sql = `SELECT * FROM files WHERE id = $1`;
         const { rows } = await pool.query(sql, [id]);
-        return rows[0] || null;
+        return rows[0] ? this._normalizeRow(rows[0]) : null;
     }
 
     /**
@@ -173,7 +182,7 @@ class LibraryService {
         `;
         const searchStr = `%${query}%`;
         const { rows } = await pool.query(sql, [searchStr]);
-        return rows;
+        return this._normalizeRows(rows);
     }
 
     /**
@@ -318,7 +327,8 @@ class LibraryService {
         const { rows } = await pool.query(`SELECT folder_id, cover_file_id FROM folder_covers`);
         const covers = {};
         rows.forEach(row => {
-            covers[row.folder_id] = row.cover_file_id;
+            // Split comma-separated IDs into an array
+            covers[row.folder_id] = row.cover_file_id ? row.cover_file_id.split(',') : [];
         });
         return covers;
     }
@@ -326,18 +336,39 @@ class LibraryService {
     async setFolderCoversBatch(coversObj) {
         const client = await this.beginTransaction();
         try {
-            for (const [folderId, coverFileId] of Object.entries(coversObj)) {
+            for (const [folderId, coverIds] of Object.entries(coversObj)) {
+                // Join array of IDs into a comma-separated string for storage
+                const coverStr = Array.isArray(coverIds) ? coverIds.join(',') : (coverIds || '');
                 const sql = `
                     INSERT INTO folder_covers(folder_id, cover_file_id) VALUES($1, $2)
                     ON CONFLICT(folder_id) DO UPDATE SET cover_file_id = EXCLUDED.cover_file_id, updated_at = CURRENT_TIMESTAMP
-            `;
-                await client.query(sql, [folderId, coverFileId]);
+                `;
+                await client.query(sql, [folderId, coverStr]);
             }
             await this.commit(client);
         } catch (e) {
             await this.rollback(client);
             throw e;
         }
+    }
+
+    /**
+     * Helper to normalize database row keys to camelCase for the frontend
+     */
+    _normalizeRow(row) {
+        if (!row) return null;
+        return {
+            ...row,
+            mimeType: row.mimetype || row.mimeType,
+            createdTime: row.createdtime || row.createdTime,
+            modifiedTime: row.modifiedtime || row.modifiedTime,
+            md5Checksum: row.md5checksum || row.md5Checksum
+        };
+    }
+
+    _normalizeRows(rows) {
+        if (!rows) return [];
+        return rows.map(r => this._normalizeRow(r));
     }
 }
 

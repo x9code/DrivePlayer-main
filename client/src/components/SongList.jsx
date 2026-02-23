@@ -22,14 +22,46 @@ const formatDuration = (seconds) => {
     return `${min}:${sec < 10 ? '0' : ''}${sec}`;
 };
 
-const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, thumbnailUrl, defaultCover, handleCoverUpload }) => {
-    const [imgSrc, setImgSrc] = useState(customCoverUrl);
+const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, coverSongIds = [], defaultCover, handleCoverUpload }) => {
+    const [coverIndex, setCoverIndex] = useState(0);
+    const [imgSrc, setImgSrc] = useState(null);
     const [showMenu, setShowMenu] = useState(false);
 
-    // Reset to custom cover if it changes (e.g. re-upload)
+    // Initial and fallback source logic
     React.useEffect(() => {
-        setImgSrc(customCoverUrl);
-    }, [customCoverUrl]);
+        if (folder.hasCustomCover || customCoverUrl.includes('?t=')) {
+            setImgSrc(customCoverUrl);
+        } else if (coverSongIds.length > 0) {
+            setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[0]}`);
+            setCoverIndex(0);
+        } else {
+            setImgSrc(defaultCover);
+        }
+    }, [customCoverUrl, coverSongIds, defaultCover, folder.hasCustomCover, folder.id]);
+
+    const handleImageError = () => {
+        // If custom cover fails
+        if (imgSrc === customCoverUrl) {
+            // ONLY fall back if NOT marked as custom cover
+            if (!folder.hasCustomCover && coverSongIds.length > 0) {
+                setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[0]}`);
+                setCoverIndex(0);
+            } else {
+                setImgSrc(defaultCover);
+            }
+            return;
+        }
+
+        // Cycle through coverSongIds
+        if (coverIndex < coverSongIds.length - 1) {
+            const nextIndex = coverIndex + 1;
+            setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[nextIndex]}`);
+            setCoverIndex(nextIndex);
+        } else {
+            // All options exhausted
+            setImgSrc(defaultCover);
+        }
+    };
 
     return (
         <div
@@ -37,18 +69,18 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
             className="group bg-white/5 backdrop-blur-2xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-500 p-3 rounded-[2rem] cursor-pointer flex flex-col gap-3 shadow-2xl hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)] hover:-translate-y-1 relative"
         >
             <div className="relative w-full aspect-square rounded-2xl shadow-lg flex items-center justify-center overflow-hidden bg-zinc-800/50">
-                <img
-                    src={imgSrc}
-                    onError={() => {
-                        if (imgSrc === customCoverUrl && thumbnailUrl) {
-                            setImgSrc(thumbnailUrl);
-                        } else if (imgSrc !== defaultCover) {
-                            setImgSrc(defaultCover);
-                        }
-                    }}
-                    alt={folder.name}
-                    className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110 ${uploading === folder.id ? 'opacity-50 blur-sm' : ''} will-change-transform`}
-                />
+                {imgSrc ? (
+                    <img
+                        src={imgSrc}
+                        onError={handleImageError}
+                        alt={folder.name}
+                        className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110 ${uploading === folder.id ? 'opacity-50 blur-sm' : ''} will-change-transform`}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900 group-hover:scale-110 transition-transform duration-700">
+                        <IoFolderOpen className="text-5xl text-white/20 group-hover:text-white/40 transition-colors" />
+                    </div>
+                )}
 
                 {/* Loading Spinner during Upload */}
                 {uploading === folder.id && (
@@ -140,13 +172,41 @@ const Equalizer = () => (
     </div>
 );
 
-const FolderRow = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, thumbnailUrl, defaultCover, handleCoverUpload }) => {
-    const [imgSrc, setImgSrc] = useState(customCoverUrl);
+const FolderRow = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, customCoverUrl, coverSongIds = [], defaultCover, handleCoverUpload }) => {
+    const [coverIndex, setCoverIndex] = useState(0);
+    const [imgSrc, setImgSrc] = useState(null);
     const [showMenu, setShowMenu] = useState(false);
 
     React.useEffect(() => {
-        setImgSrc(customCoverUrl);
-    }, [customCoverUrl]);
+        if (folder.hasCustomCover || customCoverUrl.includes('?t=')) {
+            setImgSrc(customCoverUrl);
+        } else if (coverSongIds.length > 0) {
+            setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[0]}`);
+            setCoverIndex(0);
+        } else {
+            setImgSrc(defaultCover);
+        }
+    }, [customCoverUrl, coverSongIds, defaultCover, folder.hasCustomCover, folder.id]);
+
+    const handleImageError = () => {
+        if (imgSrc === customCoverUrl) {
+            if (!folder.hasCustomCover && coverSongIds.length > 0) {
+                setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[0]}`);
+                setCoverIndex(0);
+            } else {
+                setImgSrc(defaultCover);
+            }
+            return;
+        }
+
+        if (coverIndex < coverSongIds.length - 1) {
+            const nextIndex = coverIndex + 1;
+            setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[nextIndex]}`);
+            setCoverIndex(nextIndex);
+        } else {
+            setImgSrc(defaultCover);
+        }
+    };
 
     return (
         <div
@@ -155,15 +215,18 @@ const FolderRow = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, 
         >
             {/* Icon/Cover */}
             <div className="relative w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center bg-zinc-800/50 shadow-md">
-                <img
-                    src={imgSrc}
-                    onError={() => {
-                        if (imgSrc === customCoverUrl && thumbnailUrl) setImgSrc(thumbnailUrl);
-                        else if (imgSrc !== defaultCover) setImgSrc(defaultCover);
-                    }}
-                    alt={folder.name}
-                    className={`w-full h-full object-cover transition-opacity ${uploading === folder.id ? 'opacity-50' : ''}`}
-                />
+                {imgSrc ? (
+                    <img
+                        src={imgSrc}
+                        onError={handleImageError}
+                        alt={folder.name}
+                        className={`w-full h-full object-cover transition-opacity ${uploading === folder.id ? 'opacity-50' : ''}`}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+                        <IoFolderOpen className="text-xl text-white/20" />
+                    </div>
+                )}
                 {/* Play Button Overlay */}
                 <div
                     onClick={(e) => { e.stopPropagation(); onFolderPlay(folder.id); }}
@@ -466,15 +529,7 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                         : "flex flex-col gap-1"
                     }>
                         {folders.map(folder => {
-                            // Deterministic cover selection (Fallback)
-                            const hash = folder.name.split("").reduce((a, b) => {
-                                a = ((a << 5) - a) + b.charCodeAt(0);
-                                return a & a;
-                            }, 0);
-                            const coverIndex = (Math.abs(hash) % 4) + 1;
-                            const defaultCover = `/covers/${coverIndex}.png`;
                             const customCoverUrl = `${API_BASE}/api/folder/cover/${folder.id}?t=${cacheBuster}`;
-                            const thumbnailUrl = folder.firstSongId ? `${API_BASE}/api/thumbnail/${folder.firstSongId}` : null;
 
                             return viewMode === 'grid' ? (
                                 <FolderCard
@@ -484,8 +539,8 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                                     onFolderPlay={onFolderPlay}
                                     uploading={uploading}
                                     customCoverUrl={customCoverUrl}
-                                    thumbnailUrl={thumbnailUrl}
-                                    defaultCover={defaultCover}
+                                    coverSongIds={folder.coverSongIds || []}
+                                    defaultCover={null}
                                     handleCoverUpload={handleCoverUpload}
                                 />
                             ) : (
@@ -496,8 +551,8 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                                     onFolderPlay={onFolderPlay}
                                     uploading={uploading}
                                     customCoverUrl={customCoverUrl}
-                                    thumbnailUrl={thumbnailUrl}
-                                    defaultCover={defaultCover}
+                                    coverSongIds={folder.coverSongIds || []}
+                                    defaultCover={null}
                                     handleCoverUpload={handleCoverUpload}
                                 />
                             );

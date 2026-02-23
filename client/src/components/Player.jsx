@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { IoPlay, IoPause, IoPlaySkipBack, IoPlaySkipForward, IoShuffle, IoRepeat, IoVolumeHigh, IoVolumeMute, IoChevronDown, IoList, IoHeart, IoHeartOutline, IoMusicalNotes, IoResize, IoExpand, IoMusicalNote, IoAddCircleOutline, IoInformationCircleOutline } from 'react-icons/io5';
 import Lyrics from './Lyrics';
+import { useMetadata } from '../hooks/useMetadata';
 
 // Use environment variable for API URL in production (Vercel), fall back to relative path (proxy) in dev
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -16,83 +17,29 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const [isExpanded, setIsExpanded] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [isLosslessModalOpen, setIsLosslessModalOpen] = useState(false);
-    const [meta, setMeta] = useState({ title: null, artist: null });
     const [showInfo, setShowInfo] = useState(false);
-
-
-
-    // Lock Body Scroll when Expanded
-    useEffect(() => {
-        if (isExpanded) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = '';
-        }
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, [isExpanded]);
-
-    const isLiked = useMemo(() => {
-        if (!currentSong) return false;
-        return likedSongs.some(s => s.id === currentSong.id);
-    }, [currentSong, likedSongs]);
-
-
-
     const [artError, setArtError] = useState(false);
-
-    // Lyrics State
-    const [showLyrics, setShowLyrics] = useState(() => {
-        return localStorage.getItem('driveplayer_lyrics_show') === 'true';
-    });
+    const [showLyrics, setShowLyrics] = useState(() => localStorage.getItem('driveplayer_lyrics_show') === 'true');
 
     useEffect(() => {
         localStorage.setItem('driveplayer_lyrics_show', showLyrics);
     }, [showLyrics]);
 
+    const { meta, displayMeta } = useMetadata(currentSong);
 
+    // Lock Body Scroll when Expanded
+    useEffect(() => {
+        document.body.style.overflow = isExpanded ? 'hidden' : '';
+        return () => { document.body.style.overflow = ''; };
+    }, [isExpanded]);
 
-    // Audio Ref for Lyrics Sync on new song
+    const isLiked = useMemo(() => {
+        return currentSong ? likedSongs.some(s => s.id === currentSong.id) : false;
+    }, [currentSong?.id, likedSongs]);
+
     useEffect(() => {
         if (currentSong) setArtError(false);
-    }, [currentSong]);
-
-    useEffect(() => {
-        if (currentSong) {
-            setMeta({ title: null, artist: null });
-            fetch(`${API_BASE}/api/metadata/${currentSong.id}`)
-                .then(res => res.json())
-                .then(data => {
-                    setMeta(data);
-                })
-                .catch(err => console.error("Metadata fetch error:", err));
-        }
-    }, [currentSong]);
-
-    const displayMeta = useMemo(() => {
-        if (!currentSong) return { title: '', artist: '' };
-
-        const cleaned = cleanTitle(currentSong.name);
-
-        // Priority: 1. currentSong.title (from list), 2. meta.title (fetched async), 3. cleanTitle(filename)
-        let titleText = currentSong.title || meta.title || cleaned;
-
-        // TRUST THE SOURCE: If we have a title from App.jsx or Metadata, use it.
-        // Only revert to local cleaning if we have NO title at all.
-        if (titleText) {
-            return { title: titleText, artist: currentSong.artist || meta.artist || 'Unknown Artist' };
-        }
-
-        // Fallback to local cleaning if absolutely necessary
-        if (cleaned) {
-            titleText = cleaned;
-        }
-
-        const artistText = currentSong.artist || meta.artist || 'Unknown Artist';
-
-        return { title: titleText, artist: artistText };
-    }, [currentSong, meta]);
+    }, [currentSong?.id]);
 
     useEffect(() => {
         if (currentSong && audioRef.current) {
@@ -109,34 +56,25 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
             // MediaSession API
             if ('mediaSession' in navigator) {
-                const folderId = currentSong.parents && currentSong.parents[0] ? currentSong.parents[0] : '';
+                const folderId = (currentSong.parents && currentSong.parents[0]) || '';
                 const artUrl = new URL(`${API_BASE}/api/thumbnail/${currentSong.id}?folderId=${folderId}`, window.location.origin).href;
 
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: displayMeta.title,
                     artist: displayMeta.artist,
-                    album: meta.album || 'DrivePlayer',
-                    artwork: [
-                        { src: artUrl, sizes: '96x96', type: 'image/png' },
-                        { src: artUrl, sizes: '128x128', type: 'image/png' },
-                        { src: artUrl, sizes: '192x192', type: 'image/png' },
-                        { src: artUrl, sizes: '256x256', type: 'image/png' },
-                        { src: artUrl, sizes: '384x384', type: 'image/png' },
-                        { src: artUrl, sizes: '512x512', type: 'image/png' },
-                    ]
+                    album: displayMeta.album || 'DrivePlayer',
+                    artwork: [96, 128, 192, 256, 384, 512].map(size => ({
+                        src: artUrl,
+                        sizes: `${size}x${size}`,
+                        type: 'image/png'
+                    }))
                 });
 
                 navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
-                navigator.mediaSession.setActionHandler('play', () => {
-                    setIsPlaying(true);
-                    audioRef.current.play();
-                });
-                navigator.mediaSession.setActionHandler('pause', () => {
-                    setIsPlaying(false);
-                    audioRef.current.pause();
-                });
-                navigator.mediaSession.setActionHandler('previoustrack', () => onPrev());
+                navigator.mediaSession.setActionHandler('play', () => { setIsPlaying(true); audioRef.current?.play(); });
+                navigator.mediaSession.setActionHandler('pause', () => { setIsPlaying(false); audioRef.current?.pause(); });
+                navigator.mediaSession.setActionHandler('previoustrack', onPrev);
                 navigator.mediaSession.setActionHandler('nexttrack', () => onNext(false));
                 navigator.mediaSession.setActionHandler('seekto', (details) => {
                     if (details.seekTime && audioRef.current) {
@@ -150,7 +88,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 document.removeEventListener('fullscreenchange', handleFS);
             };
         }
-    }, [currentSong, isPlaying, displayMeta, onNext, onPrev, setIsPlaying, meta.album]);
+    }, [currentSong?.id, isPlaying, displayMeta, onNext, onPrev, setIsPlaying]);
 
     // Keyboard Shortcuts
     useEffect(() => {

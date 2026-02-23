@@ -120,8 +120,8 @@ async function initializeServices() {
         // Inject LocalLibraryService for DB updates
         metadataService = new MetadataService(driveService, cacheService, CACHE_DIR, LocalLibraryService);
 
-        // Initialize SyncService with DriveService instance
-        SyncService.init(driveService);
+        // Initialize SyncService with DriveService and MetadataService instances
+        SyncService.init(driveService, metadataService);
 
         console.log('[Services] All services initialized successfully');
 
@@ -457,10 +457,10 @@ app.get('/api/files', async (req, res) => {
         console.log(`Browsing folder: ${folderName} (${targetFolderId})`);
 
         if (driveService) {
-            console.log(`[API] Fetching files using driveService (paginated)`);
-            let files = await driveService.getFilesInFolder(targetFolderId);
+            console.log(`[API] Fetching files using Local DB (fast)`);
+            let files = await LocalLibraryService.getFilesInFolder(targetFolderId);
 
-            // Enrich with metadata (covers, titles, etc.)
+            // Enrich with Metadata (Titles, Artists, and FOLDER COVERS)
             if (metadataService) {
                 files = metadataService.enrichList(files);
             }
@@ -470,6 +470,11 @@ app.get('/api/files', async (req, res) => {
                 folderId: targetFolderId,
                 folderName: folderName
             });
+
+            // [NEW] Trigger metadata enrichment in background
+            if (files.length > 0 && metadataService) {
+                metadataService.enrichFiles(files).catch(err => console.error('[API] Enrichment error:', err));
+            }
             return;
         }
 
@@ -688,7 +693,12 @@ app.get('/api/search', async (req, res) => {
 
 
 
-        res.json(filesRes.data.files || []);
+        let files = filesRes.data.files || [];
+        if (metadataService) {
+            files = metadataService.enrichList(files);
+        }
+
+        res.json(files);
     } catch (error) {
         console.error("Search error:", error);
         res.status(500).json({ error: error.message });
@@ -856,6 +866,11 @@ app.post('/api/folder/cover', upload.single('image'), (req, res) => {
 
         // Rename/Move uploaded file to target
         fs.renameSync(tempPath, targetPath);
+
+        // [NEW] Register manual cover in metadata service so fallbacks are skipped
+        if (metadataService) {
+            metadataService.registerManualCover(folderId);
+        }
 
         res.json({ success: true, message: 'Cover updated' });
     } catch (err) {

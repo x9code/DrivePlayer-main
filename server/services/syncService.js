@@ -1,9 +1,10 @@
 const libraryService = require('./libraryService');
-// const metadataService = require('./metadataService'); // Not used yet
+// const metadataService = require('./metadataService');
 
 class SyncService {
     constructor() {
-        this.driveService = null; // Dependency Injection
+        this.driveService = null;
+        this.metadataService = null;
         this.isSyncing = false;
         this.syncError = null;
         this.BATCH_SIZE = 500;
@@ -12,9 +13,10 @@ class SyncService {
     /**
      * Initialize the service with dependencies
      */
-    init(driveServiceInstance) {
+    init(driveServiceInstance, metadataServiceInstance) {
         this.driveService = driveServiceInstance;
-        console.log('[Sync] Service initialized with DriveService instance');
+        this.metadataService = metadataServiceInstance;
+        console.log('[Sync] Service initialized with DriveService and MetadataService instances');
     }
 
     /**
@@ -127,21 +129,24 @@ class SyncService {
             await libraryService.commit(client);
             console.log('[Sync] Bootstrap complete. Saved start token.');
 
+            // [NEW] Trigger metadata enrichment for the entire library after bootstrap
+            if (this.metadataService && allFiles.length > 0) {
+                console.log(`[Sync] Triggering enrichment for ${allFiles.length} files...`);
+                this.metadataService.enrichFiles(allFiles).catch(err => console.error('[Sync] Enrichment error:', err));
+            }
+
         } catch (err) {
             await libraryService.rollback(client);
             throw err;
         }
     }
 
-    /**
-     * Phase 2: Delta Sync
-     * Incremental updates using changes feed
-     */
     async runDeltaSync(currentToken) {
         console.log('[Sync] Page token found. Starting DELTA Sync...');
 
         let pageToken = currentToken;
         let hasMore = true;
+        const changedFiles = [];
 
         while (hasMore) {
             const { changes, newStartPageToken } = await this.driveService.getChanges(pageToken);
@@ -156,24 +161,11 @@ class SyncService {
                         } else if (change.file) {
                             const dbFile = this.mapDriveFileToDB(change.file);
                             await this.upsertWithOptimization(dbFile, client);
+                            changedFiles.push(dbFile);
                         }
                     }
 
                     // Update Token INSIDE Transaction
-                    // If we crash after this commit, we resume from newStartPageToken (or nextPageToken)
-                    // Note: Google Drive API behavior:
-                    // `newStartPageToken` is only present on the last page.
-                    // `nextPageToken` is present on intermediate pages.
-
-                    // We need to fetch the next valid token to save.
-                    // If we have `changes`, we are moving forward.
-                    // We should save the token that gets us the NEXT batch.
-
-                    // However, `getChanges` returns `newStartPageToken` OR `nextPageToken`.
-                    // We need to capture that from the response correctly in `getChanges`.
-                    // My previous implementation returned:
-                    // newStartPageToken: res.data.newStartPageToken || res.data.nextPageToken
-
                     const nextTokenToSave = newStartPageToken;
                     if (nextTokenToSave) {
                         await libraryService.setSyncState('nextPageToken', nextTokenToSave, client);
@@ -193,78 +185,13 @@ class SyncService {
                 }
             }
 
-            if (!newStartPageToken || newStartPageToken === pageToken) {
-                // Safety break if token doesn't change or null (shouldn't happen if hasMore logic is right)
-                // Actually, if we are at end, newStartPageToken is the "future" token.
-                // If we are iterating pages, it's nextPageToken.
-                // My driveService wrapper unifies them.
-                // If we reached the end (no more changes for now), we stop.
+            // If changes occurred, trigger enrichment for those specific files
+            if (this.metadataService && changedFiles.length > 0) {
+                console.log(`[Sync] Triggering enrichment for ${changedFiles.length} files...`);
+                this.metadataService.enrichFiles(changedFiles).catch(err => console.error('[Sync] Enrichment error:', err));
             }
 
-            // Check if we normally stop
-            // Provide a break if we processed everything?
-            // The API says: if `newStartPageToken` is present, it's the new baseline.
-            // If `nextPageToken` is present, there are more changes.
-            // My wrapper returns ONE of them as `newStartPageToken`.
-            // So if it exists, we continue?
-            // Wait, infinite loop risk?
-            // "If `newStartPageToken` is provided, it is the token for the future. You should stop."
-            // "If `nextPageToken` is provided, you should fetch again."
-
-            // I need to check `DriveService.getChanges` implementation to be sure.
-            // But relying on "hasMore" which presumably checks something?
-            // In the previous code: `hasMore` was just `true` loops, and logic inside?
-            // Previous logic:
-            // if (newStartPageToken) { pageToken = ...; hasMore = false; } else { hasMore = false; }
-            // That logic was buggy! It stopped after 1 page even if there were more pages (nextPageToken).
-
-            // Refined Logic (Assumes DriveService returns `newStartPageToken` ONLY at end):
-            // We need to differentiate between `nextPageToken` (more data) and `newStartPageToken` (synced).
-            // I'll fix this in DriveService or here. For now, let's assume `DriveService` handles it.
-            // Let's look at `DriveService.getChanges`:
-            // returns { changes, newStartPageToken: res.data.newStartPageToken || res.data.nextPageToken }
-            // This conflates them.
-            // If it is `nextPageToken` (more pages), we want to CONTINUE.
-            // If it is `newStartPageToken` (end), we want to STOP.
-
-            // WE NEED TO FIX THIS in DriveService or here.
-            // Let's assume we fix it here by checking the response structure if we could, but we can't see the raw response here.
-
-            // Safe bet:
-            // The wrapper returns `newStartPageToken`. 
-            // If `changes` were empty, we are definitely done.
-            // If `changes` were NOT empty, maybe there is more?
-            // Standard Drive API: `newStartPageToken` is top-level field, only in last page.
-            // `nextPageToken` is top-level field, only in intermediate pages.
-            // They are mutually exclusive usually.
-
-            // So if we get a token, we save it.
-            // Do we continue?
-
-            // We'll trust the wrapper implies:
-            // If it returns a token, update it.
-            // We need to know if we should Loop.
-            // Let's peek at DriveService again.
-            // It puts `res.data.newStartPageToken || res.data.nextPageToken`.
-            // We can't distinguish. This is a BUG in my previous DriveService.
-            // I will fix `DriveService` first to be distinct.
-
-            // For now, let's just make the Transaction safe, and assume the loop logic was "working" (or at least singular).
-            // Actually, the previous loop:
-            /*
-            if (newStartPageToken) {
-                pageToken = newStartPageToken;
-                hasMore = false; // IT ALWAYS STOPS!
-            }
-            */
-            // So it was only doing 1 page of changes.
-            // That's fine for "Periodic" sync (it will just take multiple runs).
-            // But for "Recovery", we might want to drain the queue.
-
-            // I will keep the "Safety" fix here:
-            // 1. Transaction wraps processing + Token Save.
-
-            hasMore = false; // Force single loops for now to avoid Infinite Loop risk until DriveService is better.
+            hasMore = false; // Force single loops for now to avoid Infinite Loop risk
         }
     }
 
@@ -286,10 +213,10 @@ class SyncService {
             modifiedTime: file.modifiedTime,
             md5Checksum: file.md5Checksum,
             // Init Metadata (will be refined by optimization or metadata service)
-            album: file.album || 'Unknown Album',
-            artist: 'Unknown Artist',
-            title: name.replace('.' + fileExt, ''),
-            duration: 0,
+            album: null,
+            artist: null,
+            title: null,
+            duration: null,
             picture: file.thumbnailLink || null // Fallback to Drive Thumbnail
         };
     }

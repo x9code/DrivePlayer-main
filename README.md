@@ -1,4 +1,4 @@
-# 🎵 DrivePlayer
+# DrivePlayer
 
 A modern, high-fidelity music player that streams your audio collection directly from **Google Drive**. 
 
