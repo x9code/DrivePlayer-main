@@ -50,6 +50,18 @@ function AppContent() {
     extractColor(currentSong?.id);
   }, [currentSong?.id]);
   const mainScrollRef = useRef(null); // Ref for main scroll container
+  const isGoingBack = useRef(false); // Track if navigating back
+
+  // Disable browser's auto scroll restoration — we manage it ourselves
+  useEffect(() => {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    // Reset scroll on page load/refresh
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = 0;
+    }
+  }, []);
   // --- Queue System ---
   const [queue, setQueue] = useState([]);
 
@@ -309,6 +321,7 @@ function AppContent() {
 
   // Navigation Logic
   const handleFolderClick = (folderId) => {
+    // Save current scroll position
     if (mainScrollRef.current) {
       const key = currentFolderId || 'root';
       scrollPositions.current[key] = mainScrollRef.current.scrollTop;
@@ -319,6 +332,7 @@ function AppContent() {
       setIsSearching(false);
     }
 
+    isGoingBack.current = false;
     setFiles([]);
     setLoading(true);
     window.history.pushState({ folderId }, '', `?folder=${folderId}`);
@@ -331,8 +345,47 @@ function AppContent() {
       clearSearch();
       return;
     }
+    // Save current scroll before going back
+    if (mainScrollRef.current) {
+      const key = currentFolderId || 'root';
+      scrollPositions.current[key] = mainScrollRef.current.scrollTop;
+    }
+    isGoingBack.current = true;
     window.history.back();
   };
+
+  // Restore scroll position after files load
+  useEffect(() => {
+    if (loading || !mainScrollRef.current) return;
+
+    const key = currentFolderId || 'root';
+    if (isGoingBack.current && scrollPositions.current[key] !== undefined) {
+      // Going back: restore saved position
+      requestAnimationFrame(() => {
+        if (mainScrollRef.current) {
+          mainScrollRef.current.scrollTop = scrollPositions.current[key];
+        }
+      });
+      isGoingBack.current = false;
+    } else if (!isGoingBack.current) {
+      // Going forward: scroll to top
+      mainScrollRef.current.scrollTop = 0;
+    }
+  }, [loading, currentFolderId]);
+
+  // Mark as "going back" when browser back/forward button is used
+  useEffect(() => {
+    const onPopState = () => {
+      // Save current scroll before navigating
+      if (mainScrollRef.current) {
+        const key = currentFolderId || 'root';
+        scrollPositions.current[key] = mainScrollRef.current.scrollTop;
+      }
+      isGoingBack.current = true;
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [currentFolderId]);
 
   // Playback Handlers
   const handlePlay = (song) => {

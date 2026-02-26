@@ -1,23 +1,50 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { IoPlay, IoPencil, IoShuffle, IoTrashOutline } from 'react-icons/io5';
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-// Cache for recursive song IDs per folder (persists across re-renders)
-const recursiveSongCache = {};
+// ═══════════════════════════════════════════
+// Module-level caches (persist across re-renders & navigation)
+// ═══════════════════════════════════════════
+const recursiveSongCache = {};   // folderId -> [songIds]
+const coverStatusCache = {};     // folderId -> boolean
 
-// Collage background: tiled grid of album art thumbnails
+// ═══════════════════════════════════════════
+// IntersectionObserver hook for lazy loading
+// ═══════════════════════════════════════════
+const useIsVisible = (ref) => {
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        if (!ref.current) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => setIsVisible(entry.isIntersecting),
+            { threshold: 0.1 }
+        );
+
+        observer.observe(ref.current);
+        return () => observer.disconnect();
+    }, [ref]);
+
+    return isVisible;
+};
+
+// ═══════════════════════════════════════════
+// Collage Component (Optimized: 25 tiles max)
+// ═══════════════════════════════════════════
 const ArtCollage = ({ songIds = [] }) => {
     const tiles = useMemo(() => {
         if (!songIds || songIds.length === 0) return [];
         const unique = [...new Set(songIds)];
-        const target = Math.min(80, Math.max(unique.length, 30));
+        // Optimization #3: 25 tiles instead of 80 (5x5 grid)
+        const target = Math.min(25, Math.max(unique.length, 15));
         const result = [];
         for (let i = 0; i < target; i++) {
             result.push(unique[i % unique.length]);
         }
-        // Fisher-Yates shuffle to spread repeated covers randomly
+        // Shuffle to spread repeated covers
         for (let i = result.length - 1; i > 0; i--) {
             const j = Math.floor(((i * 2654435761) % result.length));
             [result[i], result[j]] = [result[j], result[i]];
@@ -27,14 +54,12 @@ const ArtCollage = ({ songIds = [] }) => {
 
     if (tiles.length === 0) return null;
 
-    const cols = tiles.length >= 40 ? 10 : tiles.length >= 20 ? 8 : 6;
-
     return (
         <div
             className="absolute inset-0 overflow-hidden"
             style={{
                 display: 'grid',
-                gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                gridTemplateColumns: 'repeat(5, 1fr)',
                 gridAutoRows: '1fr',
             }}
         >
@@ -63,40 +88,39 @@ const CollageImage = React.memo(({ songId }) => {
     );
 });
 
-const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refreshTrigger }) => {
+// ═══════════════════════════════════════════
+// Section Card (with lazy loading)
+// ═══════════════════════════════════════════
+const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refreshTrigger, hasCustomCover: initialHasCustomCover }) => {
+    const cardRef = useRef(null);
+    const isVisible = useIsVisible(cardRef);
     const [isHovered, setIsHovered] = useState(false);
     const [collageSongIds, setCollageSongIds] = useState(folder.coverSongIds || []);
-
-    // Detect custom cover by probing the API (more reliable than hasCustomCover flag)
-    const [hasCustomCover, setHasCustomCover] = useState(false);
-    const [coverChecked, setCoverChecked] = useState(false);
+    const [hasCustomCover, setHasCustomCover] = useState(initialHasCustomCover);
+    const [dataLoaded, setDataLoaded] = useState(false);
     const coverUrl = `${API_BASE}/api/folder/cover/${folder.id}?t=${refreshTrigger || 0}`;
 
-    // Probe the cover endpoint to check if a custom cover exists
+    // Sync with parent prop
     useEffect(() => {
-        const checkCover = async () => {
-            try {
-                const res = await axios.head(coverUrl);
-                setHasCustomCover(res.status === 200);
-            } catch {
-                setHasCustomCover(false);
-            }
-            setCoverChecked(true);
-        };
-        checkCover();
-    }, [coverUrl]);
+        setHasCustomCover(initialHasCustomCover);
+    }, [initialHasCustomCover]);
 
-    // Fetch recursive songs for collage
+    // Optimization #1: Only fetch recursive songs when card is VISIBLE
     useEffect(() => {
+        if (!isVisible || dataLoaded || hasCustomCover) return;
+
         const existing = folder.coverSongIds || [];
 
         if (existing.length >= 10) {
             setCollageSongIds(existing);
+            setDataLoaded(true);
             return;
         }
 
+        // Optimization #2: Check module-level cache
         if (recursiveSongCache[folder.id]) {
             setCollageSongIds(recursiveSongCache[folder.id]);
+            setDataLoaded(true);
             return;
         }
 
@@ -114,16 +138,18 @@ const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refre
                 console.error('Collage fetch error:', e);
                 setCollageSongIds(existing);
             }
+            setDataLoaded(true);
         };
 
         fetchRecursive();
-    }, [folder.id, folder.coverSongIds]);
+    }, [isVisible, dataLoaded, hasCustomCover, folder.id, folder.coverSongIds]);
 
     const handleRemoveCover = async (e) => {
         e.stopPropagation();
         try {
             await axios.delete(`${API_BASE}/api/folder/cover/${folder.id}`);
             setHasCustomCover(false);
+            coverStatusCache[folder.id] = false;
         } catch (err) {
             console.error('Failed to remove cover:', err);
             alert('Failed to remove cover');
@@ -133,8 +159,10 @@ const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refre
     const handleUploadCover = (e) => {
         if (e.target.files[0]) {
             onCoverUpload(folder.id, e.target.files[0]);
-            // After upload completes (slight delay), mark as custom
-            setTimeout(() => setHasCustomCover(true), 500);
+            setTimeout(() => {
+                setHasCustomCover(true);
+                coverStatusCache[folder.id] = true;
+            }, 500);
         }
     };
 
@@ -142,6 +170,7 @@ const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refre
 
     return (
         <div
+            ref={cardRef}
             className="relative flex-none snap-start overflow-hidden group cursor-pointer transition-transform duration-700 ease-out rounded-3xl"
             style={{
                 width: 'calc(100% - 2rem)',
@@ -154,9 +183,7 @@ const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refre
         >
             {/* Background: Collage or Custom Cover */}
             <div className="absolute inset-0">
-                {!coverChecked ? (
-                    <div className="w-full h-full bg-zinc-900" />
-                ) : showCollage ? (
+                {showCollage && isVisible ? (
                     <ArtCollage songIds={collageSongIds} />
                 ) : hasCustomCover ? (
                     <img
@@ -239,12 +266,52 @@ const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refre
     );
 };
 
+// ═══════════════════════════════════════════
+// Main Component
+// ═══════════════════════════════════════════
 const HorizontalFolderNavigation = ({ folders, onFolderClick, onFolderPlay, onCoverUpload, refreshTrigger }) => {
     if (!folders || folders.length === 0) return null;
 
     const scrollContainerRef = useRef(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(true);
+
+    // Optimization #4: Batch cover status check (one call for all folders)
+    const [coverStatuses, setCoverStatuses] = useState({});
+
+    useEffect(() => {
+        const folderIds = folders.map(f => f.id);
+
+        // Check cache first — if all folders are cached, skip API call
+        const allCached = folderIds.every(id => id in coverStatusCache);
+        if (allCached) {
+            const cached = {};
+            folderIds.forEach(id => { cached[id] = coverStatusCache[id]; });
+            setCoverStatuses(cached);
+            return;
+        }
+
+        // Single batch API call
+        const fetchStatuses = async () => {
+            try {
+                const res = await axios.get(`${API_BASE}/api/folder/covers/status?ids=${folderIds.join(',')}`);
+                const statuses = res.data;
+                // Update module-level cache
+                Object.entries(statuses).forEach(([id, has]) => {
+                    coverStatusCache[id] = has;
+                });
+                setCoverStatuses(statuses);
+            } catch (e) {
+                console.error('Cover status check error:', e);
+                // Fallback: assume no custom covers
+                const fallback = {};
+                folderIds.forEach(id => { fallback[id] = false; });
+                setCoverStatuses(fallback);
+            }
+        };
+
+        fetchStatuses();
+    }, [folders, refreshTrigger]);
 
     const handleScroll = () => {
         if (scrollContainerRef.current) {
@@ -279,6 +346,7 @@ const HorizontalFolderNavigation = ({ folders, onFolderClick, onFolderPlay, onCo
                         onFolderPlay={onFolderPlay}
                         onCoverUpload={onCoverUpload}
                         refreshTrigger={refreshTrigger}
+                        hasCustomCover={!!coverStatuses[folder.id]}
                     />
                 ))}
             </div>

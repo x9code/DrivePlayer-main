@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline, IoAddCircleOutline, IoCloudDownloadOutline, IoEllipsisVertical, IoFolderOpen } from 'react-icons/io5';
+import { IoPlay, IoArrowBack, IoTimeOutline, IoFilterOutline, IoPencil, IoChevronDown, IoChevronUp, IoHeart, IoHeartOutline, IoAddCircleOutline, IoCloudDownloadOutline, IoEllipsisVertical, IoFolderOpen, IoTrashOutline } from 'react-icons/io5';
 import axios from 'axios';
 
 
@@ -26,28 +26,53 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
     const [coverIndex, setCoverIndex] = useState(0);
     const [imgSrc, setImgSrc] = useState(null);
     const [showMenu, setShowMenu] = useState(false);
+    const [localHasCustomCover, setLocalHasCustomCover] = useState(false);
 
-    // Initial and fallback source logic
+    // Probe the cover endpoint to reliably detect custom cover
     React.useEffect(() => {
-        if (folder.hasCustomCover || customCoverUrl.includes('?t=')) {
+        axios.head(`${API_BASE}/api/folder/cover/${folder.id}`)
+            .then(res => setLocalHasCustomCover(res.status === 200))
+            .catch(() => setLocalHasCustomCover(false));
+    }, [folder.id]);
+
+    const handleRemoveCover = async (e) => {
+        e.stopPropagation();
+        setShowMenu(false);
+        try {
+            await axios.delete(`${API_BASE}/api/folder/cover/${folder.id}`);
+            setLocalHasCustomCover(false);
+            // Reset to coverSongIds thumbnail or default
+            if (coverSongIds.length > 0) {
+                setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[0]}`);
+                setCoverIndex(0);
+            } else {
+                setImgSrc(defaultCover);
+            }
+        } catch (err) {
+            console.error('Failed to remove cover:', err);
+        }
+    };
+
+    // Set image source based on HEAD probe result
+    React.useEffect(() => {
+        if (localHasCustomCover) {
             setImgSrc(customCoverUrl);
         } else if (coverSongIds.length > 0) {
             setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[0]}`);
             setCoverIndex(0);
         } else {
-            setImgSrc(defaultCover);
+            setImgSrc(null);
         }
-    }, [customCoverUrl, coverSongIds, defaultCover, folder.hasCustomCover, folder.id]);
+    }, [localHasCustomCover, customCoverUrl, coverSongIds, folder.id]);
 
     const handleImageError = () => {
-        // If custom cover fails
-        if (imgSrc === customCoverUrl) {
-            // ONLY fall back if NOT marked as custom cover
-            if (!folder.hasCustomCover && coverSongIds.length > 0) {
+        // If custom cover fails, fall back to thumbnails
+        if (localHasCustomCover && imgSrc === customCoverUrl) {
+            if (coverSongIds.length > 0) {
                 setImgSrc(`${API_BASE}/api/thumbnail/${coverSongIds[0]}`);
                 setCoverIndex(0);
             } else {
-                setImgSrc(defaultCover);
+                setImgSrc(null);
             }
             return;
         }
@@ -59,7 +84,7 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
             setCoverIndex(nextIndex);
         } else {
             // All options exhausted
-            setImgSrc(defaultCover);
+            setImgSrc(null);
         }
     };
 
@@ -90,19 +115,32 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
                 )}
 
                 {/* Edit Button (Top-Left) */}
-                <label
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute left-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full p-2 shadow-lg hover:scale-105 cursor-pointer border border-white/10"
-                    title="Change Cover Image"
-                >
-                    <IoPencil size={14} />
-                    <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleCoverUpload(folder.id, e.target.files[0])}
-                    />
-                </label>
+                <div className="absolute left-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10">
+                    <label
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center justify-center bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full p-2 shadow-lg hover:scale-105 cursor-pointer border border-white/10"
+                        title="Change Cover Image"
+                    >
+                        <IoPencil size={14} />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleCoverUpload(folder.id, e.target.files[0])}
+                        />
+                    </label>
+                </div>
+
+                {/* Delete Cover Button (Top-Right) */}
+                {localHasCustomCover && (
+                    <button
+                        onClick={handleRemoveCover}
+                        className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 bg-red-500/30 hover:bg-red-500/50 backdrop-blur-md text-red-300 hover:text-red-200 rounded-full p-2 shadow-lg hover:scale-105 border border-red-500/20"
+                        title="Remove Custom Cover"
+                    >
+                        <IoTrashOutline size={14} />
+                    </button>
+                )}
 
                 {/* Play Button (Bottom-Right) — Compact */}
                 <div className="absolute right-3 bottom-3 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 ease-out z-10">
@@ -155,6 +193,15 @@ const FolderCard = React.memo(({ folder, onFolderClick, onFolderPlay, uploading,
                                     <IoCloudDownloadOutline size={18} className="text-primary" />
                                     <span>Download ZIP</span>
                                 </button>
+                                {localHasCustomCover && (
+                                    <button
+                                        onClick={handleRemoveCover}
+                                        className="w-full text-left px-3 py-3 rounded-xl text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-3 transition-colors font-medium"
+                                    >
+                                        <IoTrashOutline size={18} />
+                                        <span>Remove Cover</span>
+                                    </button>
+                                )}
                             </div>
                         </>
                     )}

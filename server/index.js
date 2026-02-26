@@ -891,6 +891,22 @@ app.get('/api/folder/cover/:folderId', (req, res) => {
     }
 });
 
+// API: Batch Check Custom Covers (single call for all folders)
+app.get('/api/folder/covers/status', (req, res) => {
+    const ids = req.query.ids;
+    if (!ids) return res.json({});
+
+    const folderIds = ids.split(',').filter(Boolean);
+    const result = {};
+
+    for (const folderId of folderIds) {
+        const coverPath = path.join(__dirname, 'custom_covers', `${folderId}.png`);
+        result[folderId] = fs.existsSync(coverPath);
+    }
+
+    res.json(result);
+});
+
 // API: Delete Custom Cover
 app.delete('/api/folder/cover/:folderId', (req, res) => {
     const folderId = req.params.folderId;
