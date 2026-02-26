@@ -468,39 +468,16 @@ const PlaylistHeader = ({ playlist, onRename, onCoverUpload, uploading, refreshT
     );
 };
 
-const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loading, cleanTitle, likedSongs = [], toggleLike, onAddPlaylist, activePlaylist, onRenamePlaylist, playCounts = {}, viewMode = 'grid' }) => {
+const SongList = ({
+    files, currentSong, onPlay, onFolderClick, onFolderPlay, loading,
+    cleanTitle, likedSongs = [], toggleLike, onAddPlaylist,
+    activePlaylist, onRenamePlaylist, playCounts = {},
+    viewMode = 'grid', onCoverUpload, uploadingFolderId, refreshTrigger
+}) => {
 
-    const [uploading, setUploading] = useState(null); // folderId or playlistId being uploaded to
-    const [cacheBuster, setCacheBuster] = useState(Date.now()); // Force image refresh
-
-    const handleCoverUpload = async (id, file) => {
-        if (!file) return;
-
-        // Validation: 5MB Limit
-        if (file.size > 5 * 1024 * 1024) {
-            alert("Image is too large! Please upload a cover smaller than 5MB.");
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('folderId', id); // Reusing 'folderId' field but sending Playlist ID
-        formData.append('image', file);
-
-        setUploading(id);
-
-        try {
-            await axios.post(`${API_BASE}/api/folder/cover`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            // Success: Update cache buster to refresh images
-            setCacheBuster(Date.now());
-        } catch (error) {
-            console.error("Upload failed", error);
-            alert("Failed to upload cover.");
-        } finally {
-            setUploading(null);
-        }
-    };
+    // We use the centralized upload handler and uploading state from App.jsx
+    const handleCoverUploadLocal = onCoverUpload;
+    const isUploading = (id) => uploadingFolderId === id;
 
     // Separate content
     const folders = files.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
@@ -514,9 +491,9 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                 <PlaylistHeader
                     playlist={activePlaylist}
                     onRename={onRenamePlaylist}
-                    onCoverUpload={handleCoverUpload}
-                    uploading={uploading === activePlaylist.id}
-                    refreshTrigger={cacheBuster}
+                    onCoverUpload={onCoverUpload}
+                    uploading={uploadingFolderId === activePlaylist.id}
+                    refreshTrigger={refreshTrigger}
                 />
             )}
 
@@ -529,7 +506,7 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                         : "flex flex-col gap-1"
                     }>
                         {folders.map(folder => {
-                            const customCoverUrl = `${API_BASE}/api/folder/cover/${folder.id}?t=${cacheBuster}`;
+                            const customCoverUrl = `${API_BASE}/api/folder/cover/${folder.id}?t=${refreshTrigger || Date.now()}`;
 
                             return viewMode === 'grid' ? (
                                 <FolderCard
@@ -537,11 +514,11 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                                     folder={folder}
                                     onFolderClick={onFolderClick}
                                     onFolderPlay={onFolderPlay}
-                                    uploading={uploading}
+                                    uploading={uploadingFolderId}
                                     customCoverUrl={customCoverUrl}
                                     coverSongIds={folder.coverSongIds || []}
                                     defaultCover={null}
-                                    handleCoverUpload={handleCoverUpload}
+                                    handleCoverUpload={onCoverUpload}
                                 />
                             ) : (
                                 <FolderRow
@@ -549,11 +526,11 @@ const SongList = ({ files, currentSong, onPlay, onFolderClick, onFolderPlay, loa
                                     folder={folder}
                                     onFolderClick={onFolderClick}
                                     onFolderPlay={onFolderPlay}
-                                    uploading={uploading}
+                                    uploading={uploadingFolderId}
                                     customCoverUrl={customCoverUrl}
                                     coverSongIds={folder.coverSongIds || []}
                                     defaultCover={null}
-                                    handleCoverUpload={handleCoverUpload}
+                                    handleCoverUpload={onCoverUpload}
                                 />
                             );
                         })}

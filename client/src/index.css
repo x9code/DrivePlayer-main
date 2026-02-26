@@ -84,6 +84,25 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* Scrollbar Hide Utility - Cross Browser */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Immersive Horizontal Scroll - Full Bleed */
+.horizontal-immersive {
+  @apply flex overflow-x-auto snap-x snap-mandatory h-screen scrollbar-hide scroll-smooth;
+}
+
+.immersive-section {
+  @apply flex-none w-screen h-screen snap-start;
+}
+
 /* Range Slider - Apple Style */
 input[type=range] {
   -webkit-appearance: none;

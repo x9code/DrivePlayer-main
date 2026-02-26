@@ -12,6 +12,7 @@ import LibraryModal from './components/LibraryModal'
 import Sidebar from './components/Sidebar' // [NEW]
 import ConfirmModal from './components/ConfirmModal'
 import { AlbumGrid, ArtistGrid } from './components/LibraryViews'
+import HorizontalFolderNavigation from './components/HorizontalFolderNavigation'
 
 import { cleanTitle } from './utils/format';
 import ProfileScreen from './components/ProfileScreen'; // [NEW]
@@ -167,6 +168,35 @@ function AppContent() {
   const [songToAdd, setSongToAdd] = useState(null);
   // showSortMenu moved to Sorting State section
 
+  // Root UI States
+  const [refreshTrigger, setRefreshTrigger] = useState(Date.now());
+  const [uploadingFolderId, setUploadingFolderId] = useState(null);
+
+  const handleCoverUpload = async (id, file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image is too large! Please upload a cover smaller than 5MB.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('folderId', id);
+    formData.append('image', file);
+
+    setUploadingFolderId(id);
+    try {
+      await axios.post(`${API_BASE}/api/folder/cover`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setRefreshTrigger(Date.now());
+    } catch (error) {
+      console.error("Upload failed", error);
+      alert("Failed to upload cover.");
+    } finally {
+      setUploadingFolderId(null);
+    }
+  };
+
 
 
   // Sorting State
@@ -289,6 +319,7 @@ function AppContent() {
       setIsSearching(false);
     }
 
+    setFiles([]);
     setLoading(true);
     window.history.pushState({ folderId }, '', `?folder=${folderId}`);
     setCurrentFolderId(folderId);
@@ -722,6 +753,14 @@ function AppContent() {
             onPlay={handleArtistPlay}
             onShuffle={handleArtistShuffle}
           />
+        ) : ((currentFolderId === null || currentFolderId === rootFolderId.current) && files.some(f => f.mimeType === 'application/vnd.google-apps.folder')) ? (
+          <HorizontalFolderNavigation
+            folders={files.filter(f => f.mimeType === 'application/vnd.google-apps.folder')}
+            onFolderClick={handleFolderClick}
+            onFolderPlay={handleFolderPlay}
+            onCoverUpload={handleCoverUpload}
+            refreshTrigger={refreshTrigger}
+          />
         ) : (
           <SongList
             files={currentFolderId === 'charts' ? files : sortedFiles}
@@ -738,6 +777,9 @@ function AppContent() {
             activePlaylist={playlists.find(p => p.id === currentFolderId)}
             onRenamePlaylist={handleRenamePlaylist}
             viewMode={viewMode}
+            onCoverUpload={handleCoverUpload}
+            uploadingFolderId={uploadingFolderId}
+            refreshTrigger={refreshTrigger}
           />
         )}
       </main>

@@ -890,6 +890,28 @@ app.get('/api/folder/cover/:folderId', (req, res) => {
         res.status(404).send('No custom cover');
     }
 });
+
+// API: Delete Custom Cover
+app.delete('/api/folder/cover/:folderId', (req, res) => {
+    const folderId = req.params.folderId;
+    const coverPath = path.join(__dirname, 'custom_covers', `${folderId}.png`);
+
+    try {
+        if (fs.existsSync(coverPath)) {
+            fs.unlinkSync(coverPath);
+        }
+
+        // Unregister from metadata service
+        if (metadataService) {
+            metadataService.unregisterManualCover(folderId);
+        }
+
+        res.json({ success: true, message: 'Custom cover removed' });
+    } catch (err) {
+        console.error('Cover delete error:', err);
+        res.status(500).json({ error: 'Failed to remove cover' });
+    }
+});
 // ----------------------------
 
 // --- Avatar Upload ---

@@ -37,7 +37,7 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient }) => {
                     {/* Attribution Footer */}
                     <div className="pt-6 mt-2 text-center border-t border-white/5">
                         <p className="text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">
-                            Designed & Developed by <span className="text-zinc-400">Deepak Kumar Rana</span>
+                            Designed & Developed by <a href="https://github.com/x9code/DrivePlayer-main/tree/main" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors underline-offset-2 hover:underline">Deepak Kumar Rana</a>
                         </p>
                         <p className="text-[8px] text-zinc-600 font-semibold tracking-widest uppercase">
                             Powered by <span className="text-zinc-400">Google - Antigravity</span>
