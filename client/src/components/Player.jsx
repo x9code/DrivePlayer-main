@@ -594,9 +594,10 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             </div>
                         </div>
 
-                        {/* RIGHT COLUMN: Lyrics Panel — always rendered, animated via opacity+transform */}
+                        {/* RIGHT COLUMN: Lyrics Panel — always rendered to pre-fetch, animated via opacity+transform */}
                         <div
                             className={`h-full min-h-0 rounded-2xl overflow-hidden transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-[opacity,transform] ${showLyrics ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'}`}
+                            style={{ contain: 'layout style' }}
                         >
                             <Lyrics
                                 audioRef={audioRef}

@@ -201,7 +201,7 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
     useEffect(() => {
         const audio = audioRef?.current;
         const el = amElementRef.current;
-        if (!audio || !el || !isExpanded) return;
+        if (!audio || !el) return;
 
         let animationFrameId;
 
@@ -240,7 +240,8 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => 
             className="w-full h-full overflow-hidden relative"
             style={{
                 maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)'
+                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
+                minHeight: '100%',
             }}
         />
     );
