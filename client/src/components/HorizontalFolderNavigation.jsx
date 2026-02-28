@@ -38,8 +38,8 @@ const ArtCollage = ({ songIds = [] }) => {
     const tiles = useMemo(() => {
         if (!songIds || songIds.length === 0) return [];
         const unique = [...new Set(songIds)];
-        // Optimization #3: 25 tiles instead of 80 (5x5 grid)
-        const target = Math.min(25, Math.max(unique.length, 15));
+        // Show one tile per unique album art (max 25 for 5x5 grid)
+        const target = Math.min(25, unique.length);
         const result = [];
         for (let i = 0; i < target; i++) {
             result.push(unique[i % unique.length]);
@@ -127,9 +127,23 @@ const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refre
         const fetchRecursive = async () => {
             try {
                 const res = await axios.get(`${API_BASE}/api/files/recursive?folderId=${folder.id}`);
-                const songs = res.data.files
-                    .filter(f => f.mimeType !== 'application/vnd.google-apps.folder')
-                    .map(f => f.id);
+                const audioFiles = res.data.files
+                    .filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+
+                // Deduplicate by album: pick one song per unique "artist - album"
+                const seen = new Set();
+                const songs = [];
+                for (const f of audioFiles) {
+                    const hasAlbumInfo = f.artist && f.album &&
+                        f.artist !== 'Unknown Artist' && f.album !== 'Unknown Album';
+                    const key = hasAlbumInfo
+                        ? `${f.artist}|||${f.album}`.toLowerCase()
+                        : f.id; // treat unknown-metadata songs as unique
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        songs.push(f.id);
+                    }
+                }
 
                 const ids = songs.length > 0 ? songs : existing;
                 recursiveSongCache[folder.id] = ids;

@@ -662,6 +662,7 @@ class MetadataService {
                     artist: cached.artist,
                     album: cached.album,
                     duration: cached.duration,
+                    artwork: cached.artwork || false,
                     hasMetadata: true
                 };
             }

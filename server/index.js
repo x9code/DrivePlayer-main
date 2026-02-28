@@ -1005,19 +1005,20 @@ app.get('/api/thumbnail/:fileId', async (req, res) => {
     const fileId = req.params.fileId;
     const cachePath = path.join(CACHE_DIR, `${fileId}`);
 
-    // 0. Check Local DB for specialized artwork (iTunes / Drive Link) - Fastest
+    // 1. Check Disk Cache first (Embedded Original Artwork) - Highest Priority
+    if (fs.existsSync(cachePath)) {
+        return res.sendFile(cachePath);
+    }
+
+    // 2. Check Local DB for fallback online artwork (iTunes / Drive Link)
     try {
         const file = await LocalLibraryService.getFile(fileId);
+        // Only redirect to HTTP if it's an online fallback and we didn't have local cache
         if (file && file.picture && file.picture.startsWith('http')) {
             return res.redirect(file.picture);
         }
     } catch (e) {
         console.warn(`[API] DB lookup failed for thumbnail ${fileId}`, e.message);
-    }
-
-    // 1. Check Disk Cache
-    if (fs.existsSync(cachePath)) {
-        return res.sendFile(cachePath);
     }
 
     // 2. Parse metadata if not cached (will extract and save artwork)

@@ -26,7 +26,7 @@ function loadAmLyricsScript() {
 // ────────────────────────────────────────────────────────────
 // am-lyrics via direct DOM web component (CDN loaded)
 // ────────────────────────────────────────────────────────────
-const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded }) => {
+const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAvailable }) => {
     const containerRef = useRef(null);
     const amElementRef = useRef(null);
     const [scriptLoaded, setScriptLoaded] = useState(amLyricsLoaded);

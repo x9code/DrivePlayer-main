@@ -13,6 +13,9 @@ export function useMetadata(song) {
             return;
         }
 
+        // Clear previous song's metadata immediately
+        setMeta({ title: null, artist: null, album: null });
+
         // Fetch full metadata for extra fields (album, etc.)
         axios.get(`${API_BASE}/api/metadata/${song.id}`)
             .then(res => setMeta(res.data))

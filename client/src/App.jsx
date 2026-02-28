@@ -174,7 +174,9 @@ function AppContent() {
   const [isSearching, setIsSearching] = useState(false)
 
   const [isShuffle, setIsShuffle] = useState(false);
-  const [repeatMode, setRepeatMode] = useState(0); // 0: Off, 1: All, 2: One
+  const [repeatMode, setRepeatMode] = useState('off'); // 'off' | 'once' | 'count' | 'infinite'
+  const [repeatCount, setRepeatCount] = useState(3); // Number for 'count' mode
+  const repeatRemaining = useRef(0); // Tracks remaining repeats during playback
   const [showSettings, setShowSettings] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [songToAdd, setSongToAdd] = useState(null);
@@ -447,9 +449,29 @@ function AppContent() {
     const activeList = queue.length > 0 ? queue : sortedFiles.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
     if (activeList.length === 0) return;
 
-    if (repeatMode === 2 && auto) {
-      setIsPlaying(true);
-      return;
+    // Handle repeat modes on auto-advance (song ended naturally)
+    if (auto) {
+      if (repeatMode === 'infinite') {
+        // Always replay
+        setIsPlaying(true);
+        return;
+      }
+      if (repeatMode === 'once') {
+        if (repeatRemaining.current > 0) {
+          repeatRemaining.current--;
+          setIsPlaying(true);
+          return;
+        }
+        // Exhausted — fall through to next song
+      }
+      if (repeatMode === 'count') {
+        if (repeatRemaining.current > 0) {
+          repeatRemaining.current--;
+          setIsPlaying(true);
+          return;
+        }
+        // Exhausted — fall through to next song
+      }
     }
 
     if (isShuffle) {
@@ -464,7 +486,7 @@ function AppContent() {
 
     const currentIndex = activeList.findIndex(s => s.id === currentSong.id);
     const nextIndex = (currentIndex + 1) % activeList.length;
-    if (nextIndex === 0 && repeatMode === 0 && auto) {
+    if (nextIndex === 0 && repeatMode === 'off' && auto) {
       setIsPlaying(false);
       return;
     }
@@ -490,7 +512,28 @@ function AppContent() {
     setIsPlaying(true);
   };
 
-  const toggleRepeat = () => setRepeatMode((prev) => (prev + 1) % 3);
+  const toggleRepeat = () => {
+    setRepeatMode(prev => {
+      const order = ['off', 'once', 'count', 'infinite'];
+      const next = order[(order.indexOf(prev) + 1) % order.length];
+      // Reset remaining counter when switching modes
+      if (next === 'once') repeatRemaining.current = 1;
+      else if (next === 'count') repeatRemaining.current = repeatCount;
+      else repeatRemaining.current = 0;
+      return next;
+    });
+  };
+
+  // Reset repeat remaining when song changes
+  useEffect(() => {
+    if (repeatMode === 'once') repeatRemaining.current = 1;
+    else if (repeatMode === 'count') repeatRemaining.current = repeatCount;
+  }, [currentSong?.id]);
+
+  // Update remaining when repeatCount changes in 'count' mode
+  useEffect(() => {
+    if (repeatMode === 'count') repeatRemaining.current = repeatCount;
+  }, [repeatCount]);
 
   const handleAlbumPlay = (songs) => {
     if (!songs || songs.length === 0) return;
@@ -846,6 +889,9 @@ function AppContent() {
         onPrev={handlePrev}
         isShuffle={isShuffle}
         repeatMode={repeatMode}
+        repeatCount={repeatCount}
+        repeatRemaining={repeatRemaining}
+        onRepeatCountChange={setRepeatCount}
         onShuffleToggle={() => setIsShuffle(!isShuffle)}
         onRepeatToggle={toggleRepeat}
         cleanTitle={cleanTitle}

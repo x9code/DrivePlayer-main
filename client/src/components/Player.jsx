@@ -8,7 +8,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 
 import { cleanTitle } from '../utils/format';
 
-const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffle, repeatMode, onShuffleToggle, onRepeatToggle, likedSongs = [], toggleLike, themeColor, hasSidebar = false, onAddPlaylist }) => {
+const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffle, repeatMode, repeatCount, repeatRemaining, onRepeatCountChange, onShuffleToggle, onRepeatToggle, likedSongs = [], toggleLike, themeColor, hasSidebar = false, onAddPlaylist }) => {
     const audioRef = useRef(null);
     const prevVolumeRef = useRef(1);
     const [progress, setProgress] = React.useState(0);
@@ -20,6 +20,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const [showInfo, setShowInfo] = useState(false);
     const [artError, setArtError] = useState(false);
     const [showLyrics, setShowLyrics] = useState(() => localStorage.getItem('driveplayer_lyrics_show') === 'true');
+    const [showRepeatPicker, setShowRepeatPicker] = useState(false);
 
     useEffect(() => {
         localStorage.setItem('driveplayer_lyrics_show', showLyrics);
@@ -126,6 +127,13 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     if (isExpanded) {
                         setShowLyrics(prev => !prev);
                         setShowInfo(false);
+                    }
+                    break;
+                case 'KeyI':
+                    e.preventDefault();
+                    if (isExpanded) {
+                        setShowInfo(prev => !prev);
+                        setShowLyrics(false);
                     }
                     break;
                 case 'PageDown':
@@ -298,12 +306,12 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] delay-100 p-8 ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-95'}`}>
 
                     {/* Header */}
-                    <div className="absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20">
-                        <button onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }} className="glass-button w-10 h-10 rounded-full flex items-center justify-center hover:text-white">
+                    <div className="absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20 pointer-events-none">
+                        <button onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }} className="glass-button w-10 h-10 rounded-full flex items-center justify-center hover:text-white pointer-events-auto">
                             <IoChevronDown size={24} />
                         </button>
 
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 pointer-events-auto">
                             {/* Lyrics Toggle */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); setShowLyrics(!showLyrics); setShowInfo(false); }}
@@ -347,26 +355,26 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 <div className={`relative group transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] [transform-style:preserve-3d] ${showLyrics ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'} ${showInfo ? '[transform:rotateY(180deg)]' : ''}`}>
 
                                     {/* FRONT FACE: Album Art */}
-                                    <div className="absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate [backface-visibility:hidden]">
+                                    <div className={`absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate [backface-visibility:hidden] ${showInfo ? 'pointer-events-none' : ''}`}>
                                         {/* Like Button Overlay (Top Right) */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
-                                            className={`absolute top-4 right-4 z-20 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg
+                                            className={`absolute top-4 right-4 z-20 p-3 flex items-center justify-center rounded-full backdrop-blur-md transition-all duration-300 shadow-lg
                                                 ${isLiked
                                                     ? 'bg-black/30 text-primary shadow-primary/20 scale-105'
                                                     : 'bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105'}
                                             `}
                                         >
-                                            {isLiked ? <IoHeart size={22} /> : <IoHeartOutline size={22} />}
+                                            {isLiked ? <IoHeart size={22} className="pointer-events-none" /> : <IoHeartOutline size={22} className="pointer-events-none" />}
                                         </button>
 
                                         {/* Info Button Overlay (Bottom Left) */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setShowInfo(!showInfo); }}
-                                            className={`absolute bottom-4 left-4 z-20 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105`}
+                                            className={`absolute bottom-4 left-4 z-20 p-3 flex items-center justify-center rounded-full backdrop-blur-md transition-all duration-300 shadow-lg bg-black/20 text-white/70 hover:bg-black/40 hover:text-white hover:scale-105`}
                                             title="Song Info"
                                         >
-                                            <IoInformationCircleOutline size={22} />
+                                            <IoInformationCircleOutline size={22} className="pointer-events-none" />
                                         </button>
 
                                         {!artError ? (
@@ -385,76 +393,84 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                                     {/* BACK FACE: Info Card */}
                                     <div
-                                        className="absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden ring-1 ring-white/10 [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col backdrop-blur-3xl"
-                                        style={{
-                                            background: themeColor ? `linear-gradient(135deg, rgba(${themeColor}, 0.5) 0%, rgba(${themeColor}, 0.2) 40%, rgba(0,0,0,0.9) 100%)` : 'linear-gradient(135deg, #18181b 0%, #000000 100%)'
-                                        }}
+                                        className={`absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden ring-1 ring-white/10 [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col ${!showInfo ? 'pointer-events-none' : ''}`}
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        {/* Info Button Overlay to Flip Back (Bottom Left) */}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setShowInfo(false); }}
-                                            className={`absolute bottom-4 left-4 z-20 p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg bg-black/30 text-primary shadow-primary/20 scale-105`}
-                                            title="Close Info"
-                                        >
-                                            <IoInformationCircleOutline size={22} />
-                                        </button>
-
-                                        <div className="px-6 pt-6 pb-4 border-b border-white/10 bg-white/5">
-                                            <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                                                <IoInformationCircleOutline size={18} className="text-primary" /> Song Info
-                                            </h3>
+                                        {/* Blurred Album Art Background */}
+                                        <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
+                                            {!artError && (
+                                                <img
+                                                    src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
+                                                    alt="Art Blur"
+                                                    className="w-full h-full object-cover blur-md scale-110 opacity-70"
+                                                />
+                                            )}
                                         </div>
 
-                                        <div className="flex-1 px-6 py-5 overflow-y-auto space-y-5 custom-scrollbar pb-16">
-                                            <div>
-                                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Title</span>
-                                                <p className="text-base text-white font-semibold leading-tight">{displayMeta.title}</p>
+                                        <div className="relative z-10 w-full h-full flex flex-col">
+                                            <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-white/10 bg-white/5 backdrop-blur-sm relative z-20">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setShowInfo(false); }}
+                                                    className="p-2.5 flex items-center justify-center rounded-full backdrop-blur-md transition-all duration-300 shadow-lg bg-black/30 text-primary hover:bg-black/50 shadow-primary/20 scale-105"
+                                                    title="Close Info"
+                                                >
+                                                    <IoInformationCircleOutline size={22} className="pointer-events-none" />
+                                                </button>
+                                                <h3 className="text-sm font-bold text-white uppercase tracking-widest">
+                                                    Song Info
+                                                </h3>
                                             </div>
-                                            <div>
-                                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Artist</span>
-                                                <p className="text-[15px] text-zinc-200 font-medium leading-tight">{displayMeta.artist}</p>
-                                            </div>
-                                            {meta.album && (
+
+                                            <div className="flex-1 px-6 py-5 overflow-y-auto space-y-5 custom-scrollbar pb-16">
                                                 <div>
-                                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Album</span>
-                                                    <p className="text-[14px] text-zinc-300 leading-tight">{meta.album}</p>
+                                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Title</span>
+                                                    <p className="text-base text-white font-semibold leading-tight">{displayMeta.title}</p>
                                                 </div>
-                                            )}
-                                            <div className="flex gap-4">
-                                                {duration > 0 && (
-                                                    <div className="flex-1">
-                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Duration</span>
-                                                        <p className="text-[14px] text-zinc-300">{formatTime(duration)}</p>
+                                                <div>
+                                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Artist</span>
+                                                    <p className="text-[15px] text-zinc-200 font-medium leading-tight">{displayMeta.artist}</p>
+                                                </div>
+                                                {meta.album && (
+                                                    <div>
+                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Album</span>
+                                                        <p className="text-[14px] text-zinc-300 leading-tight">{meta.album}</p>
                                                     </div>
                                                 )}
-                                                {meta.codec && (
-                                                    <div className="flex-1">
-                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Codec</span>
-                                                        <p className="text-[14px] text-zinc-300">{meta.codec}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-4">
-                                                {meta.sampleRate && (
-                                                    <div className="flex-1">
-                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Sample Rate</span>
-                                                        <p className="text-[14px] text-zinc-300">{(meta.sampleRate / 1000).toFixed(1)} kHz</p>
-                                                    </div>
-                                                )}
-                                                {meta.bitsPerSample && (
-                                                    <div className="flex-1">
-                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Bit Depth</span>
-                                                        <p className="text-[14px] text-zinc-300">{meta.bitsPerSample}-bit</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="pt-4 border-t border-white/10 mt-2">
-                                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">File</span>
-                                                <p className="text-xs text-zinc-400 leading-tight break-all mt-1">{meta.filename || currentSong?.name}</p>
-                                                {currentSong?.size && (
-                                                    <p className="text-[11px] text-zinc-500 mt-1">{(currentSong.size / (1024 * 1024)).toFixed(1)} MB</p>
-                                                )}
+                                                <div className="flex gap-4">
+                                                    {duration > 0 && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Duration</span>
+                                                            <p className="text-[14px] text-zinc-300">{formatTime(duration)}</p>
+                                                        </div>
+                                                    )}
+                                                    {meta.codec && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Codec</span>
+                                                            <p className="text-[14px] text-zinc-300">{meta.codec}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex gap-4">
+                                                    {meta.sampleRate && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Sample Rate</span>
+                                                            <p className="text-[14px] text-zinc-300">{(meta.sampleRate / 1000).toFixed(1)} kHz</p>
+                                                        </div>
+                                                    )}
+                                                    {meta.bitsPerSample && (
+                                                        <div className="flex-1">
+                                                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Bit Depth</span>
+                                                            <p className="text-[14px] text-zinc-300">{meta.bitsPerSample}-bit</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="pt-4 border-t border-white/10 mt-2">
+                                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">File</span>
+                                                    <p className="text-xs text-zinc-400 leading-tight break-all mt-1">{meta.filename || currentSong?.name}</p>
+                                                    {currentSong?.size && (
+                                                        <p className="text-[11px] text-zinc-500 mt-1">{(currentSong.size / (1024 * 1024)).toFixed(1)} MB</p>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -466,7 +482,14 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 <div className="flex items-center justify-center gap-3">
                                     <h2 className={`font-bold text-white truncate transition-all duration-700 ${showLyrics ? 'text-xl max-w-[250px]' : 'text-3xl max-w-xs'}`}>{displayMeta.title}</h2>
                                 </div>
-                                <p className={`text-zinc-400 font-medium transition-all duration-700 ${showLyrics ? 'text-sm' : 'text-lg'}`}>{displayMeta.artist}</p>
+                                <p className={`text-zinc-400 font-medium transition-all duration-700 ${showLyrics ? 'text-sm' : 'text-lg'}`}>
+                                    {(() => {
+                                        const artist = displayMeta.artist || '';
+                                        const parts = artist.split(/[;,]\s*/);
+                                        if (parts.length <= 3) return artist;
+                                        return parts.slice(0, 3).join(', ') + '...';
+                                    })()}
+                                </p>
                             </div>
 
                             {/* Progress Bar */}
@@ -587,10 +610,88 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                     <IoPlaySkipForward size={showLyrics ? 26 : 32} />
                                 </button>
 
-                                <button onClick={(e) => { e.stopPropagation(); onRepeatToggle(); }} className={`transition-colors ${repeatMode > 0 ? 'text-primary' : 'text-zinc-500 hover:text-white'} relative`}>
-                                    <IoRepeat size={showLyrics ? 20 : 24} />
-                                    {repeatMode === 2 && <span className="absolute -top-1 -right-1 text-[8px] bg-primary text-black px-1 rounded-full font-bold">1</span>}
-                                </button>
+                                <div className="relative">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (showRepeatPicker) {
+                                                // Picker is open — close it and cycle past count
+                                                setShowRepeatPicker(false);
+                                                onRepeatToggle();
+                                            } else {
+                                                // Cycle to next mode
+                                                const nextMode = { off: 'once', once: 'count', count: 'infinite', infinite: 'off' }[repeatMode];
+                                                onRepeatToggle();
+                                                // Auto-open picker when entering count mode
+                                                setShowRepeatPicker(nextMode === 'count');
+                                            }
+                                        }}
+                                        className={`transition-colors ${repeatMode !== 'off' ? 'text-primary' : 'text-zinc-500 hover:text-white'} relative`}
+                                    >
+                                        <IoRepeat size={showLyrics ? 20 : 24} />
+                                        {repeatMode === 'once' && <span className="absolute -top-1 -right-1 text-[8px] bg-primary text-black px-1 rounded-full font-bold">1</span>}
+                                        {repeatMode === 'count' && (
+                                            <span
+                                                className="absolute -top-1 -right-2 text-[8px] bg-primary text-black px-1 rounded-full font-bold cursor-pointer hover:scale-110 transition-transform"
+                                                onClick={(e) => { e.stopPropagation(); setShowRepeatPicker(!showRepeatPicker); }}
+                                            >
+                                                {repeatRemaining?.current ?? repeatCount}
+                                            </span>
+                                        )}
+                                        {repeatMode === 'infinite' && <span className="absolute -top-1 -right-1 text-[8px] bg-primary text-black px-1 rounded-full font-bold">&infin;</span>}
+                                    </button>
+
+                                    {/* Repeat Count Picker Popup */}
+                                    {showRepeatPicker && repeatMode === 'count' && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowRepeatPicker(false); }} />
+                                            <div
+                                                className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 w-14 h-40 rounded-2xl overflow-hidden ring-1 ring-white/20 shadow-2xl animate-in fade-in zoom-in-90 slide-in-from-bottom-2 duration-150"
+                                                style={{
+                                                    background: 'rgba(255,255,255,0.08)',
+                                                    backdropFilter: 'blur(40px) saturate(1.8)',
+                                                    WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
+                                                    boxShadow: '0 16px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)'
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                {/* Fade edges */}
+                                                <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-black/60 to-transparent z-10 pointer-events-none rounded-t-2xl" />
+                                                <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black/60 to-transparent z-10 pointer-events-none rounded-b-2xl" />
+
+
+
+                                                <div
+                                                    className="h-full overflow-y-auto scrollbar-hide py-1"
+                                                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                                                    ref={(el) => {
+                                                        if (el && !el.dataset.scrolled) {
+                                                            el.dataset.scrolled = 'true';
+                                                            requestAnimationFrame(() => {
+                                                                const item = el.querySelector(`[data-val="${repeatCount}"]`);
+                                                                if (item) item.scrollIntoView({ block: 'center' });
+                                                            });
+                                                        }
+                                                    }}
+                                                >
+                                                    {Array.from({ length: 98 }, (_, i) => i + 2).map(n => (
+                                                        <div
+                                                            key={n}
+                                                            data-val={n}
+                                                            className={`h-8 flex items-center justify-center text-sm font-semibold cursor-pointer transition-all duration-150 ${n === repeatCount
+                                                                ? 'text-white scale-110 bg-white/10 rounded-lg mx-1'
+                                                                : 'text-white/30 hover:text-white/60'
+                                                                }`}
+                                                            onClick={() => { onRepeatCountChange(n); setShowRepeatPicker(false); }}
+                                                        >
+                                                            {n}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -622,7 +723,10 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         crossOrigin="anonymous"
                         src={`${API_BASE}/api/stream/${currentSong.id}`}
                         onTimeUpdate={handleTimeUpdate}
-                        onEnded={() => onNext(true)}
+                        onEnded={() => {
+                            if (audioRef.current) audioRef.current.currentTime = 0;
+                            onNext(true);
+                        }}
                         autoPlay
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}

@@ -70,7 +70,14 @@ class ArtService {
 
         // 2. Process Albums
         for (const [key, group] of Object.entries(albumGroups)) {
-            // Check if ANY file in this group has artwork (Local)
+            // Check if ANY file in this group has embedded artwork (from metadata scan)
+            const hasEmbeddedArt = group.some(f => f.artwork === true);
+            if (hasEmbeddedArt) {
+                // Skip iTunes fetch — embedded art is served from local cache
+                continue;
+            }
+
+            // Check if ANY file in this group has artwork (Local URL)
             const existingArtFile = group.find(f => f.picture && !f.picture.includes('googleusercontent.com'));
             const lowResArtFile = group.find(f => f.picture || f.thumbnailLink);
 
@@ -104,6 +111,8 @@ class ArtService {
 
         // 3. Process Singles (Unknown Album)
         for (const file of singles) {
+            // Skip if file has embedded artwork from metadata scan
+            if (file.artwork === true) continue;
             if (!file.picture) {
                 const artUrl = await this.fetchAlbumArt(file.artist, null, file.title || file.name);
                 if (artUrl) {
