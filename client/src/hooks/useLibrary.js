@@ -125,7 +125,7 @@ export function useLibrary(token) {
                     setFiles(allFiles.filter(f => {
                         if (!f.artist) return false;
                         if (f.artist === artistName) return true;
-                        const artists = f.artist.split(/[;,\/]|\s+feat\.?\s+|\s+ft\.?\s+|\s+&\s+/i).map(a => a.trim());
+                        const artists = f.artist.split(/[,\/]|\s+feat\.?\s+|\s+ft\.?\s+|\s+&\s+/i).map(a => a.trim());
                         return artists.includes(artistName);
                     }));
                 } else if (folderId.startsWith('lib:album:')) {

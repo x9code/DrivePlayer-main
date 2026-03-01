@@ -490,6 +490,11 @@ class MetadataService {
         let artist = sanitizeString(common.artist)
             || sanitizeString(common.albumartist);
 
+        // [NEW] Replace ; separators with commas so they render properly
+        if (artist && artist.includes(';')) {
+            artist = artist.replace(/;\s*/g, ', ');
+        }
+
         // [NEW] Fallback for artist if missing or literally "Unknown Artist"
         if (!artist || artist.toLowerCase() === 'unknown artist' || artist.toLowerCase() === 'unknown') {
             const parsedArtist = parseArtistFromFilename(filename);
