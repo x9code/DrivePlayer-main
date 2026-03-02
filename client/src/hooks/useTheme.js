@@ -3,14 +3,43 @@ import { useState, useEffect } from 'react';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export function useTheme() {
-    const [themeColor, setThemeColor] = useState('224, 133, 224'); // Default Pink-Lavender
+    const [defaultColor, setDefaultColor] = useState(() => {
+        return localStorage.getItem('driveplayer_default_color') || '#e085e0'; // Default Pink-Lavender hex
+    });
+
+    const hexToRgbStr = (hex) => {
+        if (!hex) return '224, 133, 224';
+        let h = hex.replace('#', '');
+        if (h.length === 3) h = h.split('').map(x => x + x).join('');
+        const r = parseInt(h.substring(0, 2), 16) || 224;
+        const g = parseInt(h.substring(2, 4), 16) || 133;
+        const b = parseInt(h.substring(4, 6), 16) || 224;
+        return `${r}, ${g}, ${b}`;
+    };
+
+    const [themeColor, setThemeColor] = useState(hexToRgbStr(defaultColor));
     const [gradientEnabled, setGradientEnabled] = useState(() => {
         return localStorage.getItem('driveplayer_gradient') === 'true';
+    });
+    const [useAlbumColor, setUseAlbumColor] = useState(() => {
+        const stored = localStorage.getItem('driveplayer_use_album_color');
+        return stored !== null ? stored === 'true' : true; // Default to true
     });
 
     useEffect(() => {
         localStorage.setItem('driveplayer_gradient', gradientEnabled);
     }, [gradientEnabled]);
+
+    useEffect(() => {
+        localStorage.setItem('driveplayer_use_album_color', useAlbumColor);
+    }, [useAlbumColor]);
+
+    useEffect(() => {
+        localStorage.setItem('driveplayer_default_color', defaultColor);
+        // If we want the app color to immediately reflect the change while NO song is playing or when overriding
+        document.documentElement.style.setProperty('--theme-color', hexToRgbStr(defaultColor));
+        setThemeColor(hexToRgbStr(defaultColor));
+    }, [defaultColor]);
 
     useEffect(() => {
         document.documentElement.style.setProperty('--theme-color', themeColor);
@@ -59,8 +88,8 @@ export function useTheme() {
     };
 
     const extractColor = (songId) => {
-        if (!songId) {
-            setThemeColor('224, 133, 224');
+        if (!songId || !useAlbumColor) {
+            setThemeColor(hexToRgbStr(defaultColor));
             return;
         }
 
@@ -106,12 +135,12 @@ export function useTheme() {
                 setThemeColor(`${finalR}, ${finalG}, ${finalB}`);
             } catch (e) {
                 console.warn("Color extraction failed", e);
-                setThemeColor('224, 133, 224');
+                setThemeColor(hexToRgbStr(defaultColor));
             }
         };
 
-        img.onerror = () => setThemeColor('224, 133, 224');
+        img.onerror = () => setThemeColor(hexToRgbStr(defaultColor));
     };
 
-    return { themeColor, gradientEnabled, setGradientEnabled, extractColor };
+    return { themeColor, gradientEnabled, setGradientEnabled, extractColor, defaultColor, setDefaultColor, useAlbumColor, setUseAlbumColor };
 }

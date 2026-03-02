@@ -41,7 +41,7 @@ function AppContent() {
   const { user, token, logout, loading: authLoading } = useAuth(); // [NEW] Auth Hook
 
   const {
-    themeColor, gradientEnabled, setGradientEnabled, extractColor
+    themeColor, gradientEnabled, setGradientEnabled, extractColor, defaultColor, setDefaultColor, useAlbumColor, setUseAlbumColor
   } = useTheme();
 
   const {
@@ -55,10 +55,10 @@ function AppContent() {
   const [currentSong, setCurrentSong] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
 
-  // Extract color on song change
+  // Extract color on song change or toggle change
   useEffect(() => {
     extractColor(currentSong?.id);
-  }, [currentSong?.id]);
+  }, [currentSong?.id, useAlbumColor]);
   const mainScrollRef = useRef(null); // Ref for main scroll container
   const isGoingBack = useRef(false); // Track if navigating back
 
@@ -936,6 +936,10 @@ function AppContent() {
             onClose={() => setShowSettings(false)}
             gradientEnabled={gradientEnabled}
             onToggleGradient={() => setGradientEnabled(!gradientEnabled)}
+            defaultColor={defaultColor}
+            onSetDefaultColor={setDefaultColor}
+            useAlbumColor={useAlbumColor}
+            onSetUseAlbumColor={setUseAlbumColor}
           />
         )
       }

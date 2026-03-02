@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { IoClose, IoSettingsOutline } from 'react-icons/io5';
 
-const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient }) => {
+const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient, defaultColor, onSetDefaultColor, useAlbumColor, onSetUseAlbumColor }) => {
     return (
         <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
@@ -39,6 +39,38 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient }) => {
                         >
                             <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${gradientEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
+                    </div>
+
+                    {/* Option 1.5: Follow Album Art Color */}
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                        <div className="flex flex-col">
+                            <span className="font-medium text-white">Album Art Theme</span>
+                            <span className="text-xs text-zinc-400">Adapt to current song</span>
+                        </div>
+                        <button
+                            onClick={() => onSetUseAlbumColor(!useAlbumColor)}
+                            className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out ${useAlbumColor ? 'bg-primary' : 'bg-zinc-700'}`}
+                        >
+                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${useAlbumColor ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+
+                    {/* Option 2: App Color */}
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                        <div className="flex flex-col">
+                            <span className="font-medium text-white">App Color</span>
+                            <span className="text-xs text-zinc-400">Choose default accent color</span>
+                        </div>
+                        <div className={`relative w-8 h-8 rounded-full overflow-hidden border-2 border-white/20 transition-colors shadow-inner flex items-center justify-center ${useAlbumColor ? 'opacity-50 cursor-not-allowed' : 'hover:border-white/50'}`}>
+                            <input
+                                type="color"
+                                value={defaultColor}
+                                onChange={(e) => onSetDefaultColor(e.target.value)}
+                                className="absolute -inset-10 w-20 h-20 cursor-pointer"
+                                title="Choose color"
+                                disabled={useAlbumColor}
+                            />
+                        </div>
                     </div>
 
                     {/* Attribution Footer */}
