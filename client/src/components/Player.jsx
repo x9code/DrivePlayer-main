@@ -268,28 +268,28 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     </div>
 
                     {/* Right: Controls */}
-                    <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="flex items-center gap-2 sm:gap-4" onClick={(e) => e.stopPropagation()}>
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); toggleLike(currentSong); }}
-                            className={`p-3 -m-3 transition-colors hidden sm:block ${isLiked ? 'text-primary' : 'text-zinc-400 hover:text-white'}`}
+                            className={`p-1.5 transition-colors ${isLiked ? 'text-primary' : 'text-zinc-400 hover:text-white'}`}
                         >
                             {isLiked ? <IoHeart size={20} className="pointer-events-none" /> : <IoHeartOutline size={20} className="pointer-events-none" />}
                         </button>
 
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onPrev(); }} className="p-3 -m-3 text-zinc-300 hover:text-white hidden sm:block">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); onPrev(); }} className="p-1.5 text-zinc-300 hover:text-white hidden sm:block">
                             <IoPlaySkipBack size={20} className="pointer-events-none" />
                         </button>
 
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); togglePlay(e); }}
-                            className="w-10 h-10 bg-white flex-shrink-0 text-black rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg"
+                            className="relative z-10 w-10 h-10 bg-white flex-shrink-0 text-black rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg"
                         >
                             {isPlaying ? <IoPause size={18} className="pointer-events-none" /> : <IoPlay size={20} className="pl-0.5 pointer-events-none" />}
                         </button>
 
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onNext(false); }} className="p-3 -m-3 text-zinc-300 hover:text-white">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); onNext(false); }} className="p-1.5 text-zinc-300 hover:text-white">
                             <IoPlaySkipForward size={20} className="pointer-events-none" />
                         </button>
                     </div>
@@ -309,11 +309,11 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                     {/* Header */}
                     <div className="absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20 pointer-events-none">
-                        <button onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }} className="glass-button w-10 h-10 rounded-full flex items-center justify-center hover:text-white pointer-events-auto">
+                        <button onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }} className={`glass-button w-10 h-10 rounded-full flex items-center justify-center hover:text-white ${isExpanded ? 'pointer-events-auto' : ''}`}>
                             <IoChevronDown size={24} />
                         </button>
 
-                        <div className="flex gap-3 pointer-events-auto">
+                        <div className={`flex gap-3 ${isExpanded ? 'pointer-events-auto' : ''}`}>
                             {/* Lyrics Toggle */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); setShowLyrics(!showLyrics); setShowInfo(false); }}
