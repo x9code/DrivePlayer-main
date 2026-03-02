@@ -27,6 +27,16 @@ import { useLibrary } from './hooks/useLibrary';
 // Environment variable for API URL (Production vs Dev)
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+// Helper: normalized string used for \"Name\" sorting
+function getSongSortName(file) {
+  if (!file) return '';
+  const base = (file.title || file.name || '').toString();
+  return base
+    .replace(/^\d+[\s._-]*/, '') // strip leading track numbers like \"01 - \"
+    .trim()
+    .toLowerCase();
+}
+
 function AppContent() {
   const { user, token, logout, loading: authLoading } = useAuth(); // [NEW] Auth Hook
 
@@ -250,8 +260,8 @@ function AppContent() {
           break;
         case 'name':
         default:
-          valA = a.name.toLowerCase();
-          valB = b.name.toLowerCase();
+          valA = getSongSortName(a);
+          valB = getSongSortName(b);
       }
 
       if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
@@ -590,6 +600,9 @@ function AppContent() {
     localStorage.setItem('driveplayer_sidebar_collapsed', isSidebarCollapsed);
   }, [isSidebarCollapsed]);
 
+  const sidebarCollapsedWidth = 80; // px, should match Sidebar collapsedWidth
+  const sidebarExpandedWidth = 256; // px, should match Sidebar expandedWidth
+
   const toggleSidebar = () => setIsSidebarCollapsed(!isSidebarCollapsed);
 
   useEffect(() => {
@@ -606,6 +619,8 @@ function AppContent() {
       return () => clearTimeout(timer);
     }
   }, [currentSong?.id]);
+
+  const headerLeft = !isMobile ? (isSidebarCollapsed ? sidebarCollapsedWidth : sidebarExpandedWidth) : 0;
 
   return (
     <div className="min-h-screen bg-transparent text-white selection:bg-primary selection:text-black relative z-0">
@@ -630,7 +645,7 @@ function AppContent() {
 
       {/* Sidebar (Desktop) */}
       {!isMobile && (
-        <div className={`fixed top-0 left-0 bottom-0 z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+        <div className="fixed top-0 left-0 bottom-0 z-50 transition-all duration-300">
           <Sidebar
             playlists={playlists}
             currentFolderId={currentFolderId}
@@ -645,7 +660,10 @@ function AppContent() {
       )}
 
       {/* Header - Glassmorphism Refined */}
-      <header className={`fixed top-0 right-0 z-50 h-20 flex items-center px-6 justify-between transition-all duration-300 glass-surface ${!isMobile ? (isSidebarCollapsed ? 'left-20' : 'left-64') : 'left-0'}`}>
+      <header
+        className="fixed top-0 right-0 z-40 h-20 flex items-center px-6 justify-between transition-all duration-300 glass-surface"
+        style={{ left: `${headerLeft}px` }}
+      >
         <div className="flex items-center gap-3 min-w-0 mr-4">
           {((currentFolderId && currentFolderId !== rootFolderId.current) || isSearching) && (
             <button onClick={handleBack} className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-white hover:scale-105 shrink-0" title="Go Back">
@@ -695,7 +713,16 @@ function AppContent() {
 
               {/* Dropdown */}
               {showSortMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 glass-panel rounded-2xl overflow-hidden p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-white/10">
+                <div
+                  className="absolute right-0 top-full mt-2 w-48 rounded-2xl overflow-hidden p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-white/10 backdrop-blur-2xl"
+                  style={{
+                    background: `
+                      radial-gradient(circle at 0% 0%, rgba(${themeColor},0.28) 0%, transparent 55%),
+                      radial-gradient(circle at 100% 0%, rgba(${themeColor},0.18) 0%, transparent 55%),
+                      linear-gradient(180deg, rgba(15,15,15,0.96), rgba(5,5,5,0.98))
+                    `
+                  }}
+                >
                   <div className="px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Sort By</div>
                   {['name', 'date', 'size'].map(opt => (
                     <button

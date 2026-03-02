@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { IoWarningOutline } from 'react-icons/io5';
 
 const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
@@ -17,14 +18,15 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
 
     return (
         <div
-            className={`fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-200 
-            ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={onCancel} // Click outside to close
         >
-            <div
+            <motion.div
                 onClick={(e) => e.stopPropagation()}
-                className={`w-full max-w-sm bg-zinc-900 border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden transition-all duration-200 transform
-                ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+                className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden"
+                initial={{ opacity: 0, scale: 0.9, y: 12 }}
+                animate={{ opacity: isOpen ? 1 : 0, scale: isOpen ? 1 : 0.9, y: isOpen ? 0 : 12 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 26 }}
             >
                 <div className="flex items-start gap-4 mb-4">
                     <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
@@ -50,7 +52,7 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
                         Delete
                     </button>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 };

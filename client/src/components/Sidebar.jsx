@@ -2,6 +2,7 @@ import { IoHome, IoHeart, IoMusicalNote, IoAdd, IoTrashOutline, IoLibrary, IoDis
 import PlaylistCover from './PlaylistCover';
 import axios from 'axios';
 import { useEffect, useState, useRef } from 'react';
+import { motion } from 'framer-motion';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -108,6 +109,9 @@ const Sidebar = ({
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const playlistScrollRef = useRef(null);
     const savedScrollPosition = useRef(0);
+    const [isHovered, setIsHovered] = useState(false);
+
+    const effectiveCollapsed = isCollapsed && !isHovered;
 
     const handleCreateSubmit = (e) => {
         e.preventDefault();
@@ -129,10 +133,21 @@ const Sidebar = ({
         }
     }, [playlists]);
 
+    const collapsedWidth = 80; // Tailwind w-20 (5rem)
+    const expandedWidth = 256; // Tailwind w-64 (16rem)
+
     return (
-        <aside className={`bg-black/40 backdrop-blur-xl border-r border-white/5 flex flex-col h-full transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} ${className}`}>
+        <motion.aside
+            layout
+            className={`bg-black/40 backdrop-blur-xl border-r border-white/5 flex flex-col h-full ${className}`}
+            initial={{ width: isCollapsed ? collapsedWidth : expandedWidth }}
+            animate={{ width: effectiveCollapsed ? collapsedWidth : expandedWidth }}
+            transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             {/* Logo area */}
-            <div className={`h-20 flex items-center transition-all duration-300 ${isCollapsed ? 'justify-center p-0' : 'px-6'}`}>
+            <div className={`h-20 flex items-center transition-all duration-300 ${effectiveCollapsed ? 'justify-center p-0' : 'px-6'}`}>
                 <button
                     onClick={() => onToggle()}
                     className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center backdrop-blur-md border border-white/5 hover:bg-white/10 transition-colors group"
@@ -150,66 +165,66 @@ const Sidebar = ({
             </div>
 
             {/* Main Nav */}
-            <nav className={`flex flex-col gap-1 ${isCollapsed ? 'px-2 items-center' : 'px-3'}`}>
+            <nav className={`flex flex-col gap-1 ${effectiveCollapsed ? 'px-2 items-center' : 'px-3'}`}>
                 <NavItem
                     icon={<IoHome size={20} />}
                     label="Home"
                     active={!currentFolderId && currentFolderId !== 'favorites' && !currentFolderId?.startsWith('lib:')}
                     onClick={() => onNavigate(null)}
-                    isCollapsed={isCollapsed}
+                    isCollapsed={effectiveCollapsed}
                 />
                 <NavItem
                     icon={<IoHeart size={20} />}
                     label="Favorites"
                     active={currentFolderId === 'favorites'}
                     onClick={() => onNavigate('favorites')}
-                    isCollapsed={isCollapsed}
+                    isCollapsed={effectiveCollapsed}
                 />
                 <NavItem
                     icon={<IoStatsChart size={20} />}
                     label="Charts"
                     active={currentFolderId === 'charts'}
                     onClick={() => onNavigate('charts')}
-                    isCollapsed={isCollapsed}
+                    isCollapsed={effectiveCollapsed}
                 />
             </nav>
 
-            <div className={`my-4 border-b border-white/5 ${isCollapsed ? 'mx-4' : 'mx-6'}`}></div>
+            <div className={`my-4 border-b border-white/5 ${effectiveCollapsed ? 'mx-4' : 'mx-6'}`}></div>
 
             {/* Library Nav */}
-            {!isCollapsed && (
+            {!effectiveCollapsed && (
                 <div className="px-6 mb-2">
                     <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Library</span>
                 </div>
             )}
-            <nav className={`flex flex-col gap-1 ${isCollapsed ? 'px-2 items-center' : 'px-3'}`}>
+            <nav className={`flex flex-col gap-1 ${effectiveCollapsed ? 'px-2 items-center' : 'px-3'}`}>
                 <NavItem
                     icon={<IoMusicalNote size={20} />}
                     label="Songs"
                     active={currentFolderId === 'lib:songs'}
                     onClick={() => onNavigate('lib:songs')}
-                    isCollapsed={isCollapsed}
+                    isCollapsed={effectiveCollapsed}
                 />
                 <NavItem
                     icon={<IoDiscOutline size={20} />}
                     label="Albums"
                     active={currentFolderId === 'lib:albums'}
                     onClick={() => onNavigate('lib:albums')}
-                    isCollapsed={isCollapsed}
+                    isCollapsed={effectiveCollapsed}
                 />
                 <NavItem
                     icon={<IoPeopleOutline size={20} />}
                     label="Artists"
                     active={currentFolderId === 'lib:artists'}
                     onClick={() => onNavigate('lib:artists')}
-                    isCollapsed={isCollapsed}
+                    isCollapsed={effectiveCollapsed}
                 />
             </nav>
 
-            <div className={`my-4 border-b border-white/5 ${isCollapsed ? 'mx-4' : 'mx-6'}`}></div>
+            <div className={`my-4 border-b border-white/5 ${effectiveCollapsed ? 'mx-4' : 'mx-6'}`}></div>
 
             {/* Playlists Header */}
-            {!isCollapsed ? (
+            {!effectiveCollapsed ? (
                 <div className="px-6 flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Playlists</span>
                     <button
@@ -236,7 +251,7 @@ const Sidebar = ({
             )}
 
             {/* Create Playlist Input */}
-            {isCreating && !isCollapsed && (
+            {isCreating && !effectiveCollapsed && (
                 <form onSubmit={handleCreateSubmit} className="px-3 mb-2 animate-in fade-in slide-in-from-top-2">
                     <div className="relative">
                         <input
@@ -256,7 +271,7 @@ const Sidebar = ({
             {/* Playlists List */}
             <div
                 ref={playlistScrollRef}
-                className={`flex-1 overflow-y-auto custom-scrollbar pb-6 space-y-1 ${isCollapsed ? 'px-2' : 'px-3'}`}
+                className={`flex-1 overflow-y-auto custom-scrollbar pb-6 space-y-1 ${effectiveCollapsed ? 'px-2' : 'px-3'}`}
                 onScroll={(e) => {
                     // Save scroll position as user scrolls
                     savedScrollPosition.current = e.target.scrollTop;
@@ -269,13 +284,13 @@ const Sidebar = ({
                         active={currentFolderId === playlist.id}
                         onClick={() => onNavigate(playlist.id)}
                         onDelete={(e) => onDeletePlaylist(e, playlist.id)}
-                        isCollapsed={isCollapsed}
+                        isCollapsed={effectiveCollapsed}
                     />
                 ))}
             </div>
 
             {/* Profile Nav (Bottom) */}
-            <div className={`mt-auto ${isCollapsed ? 'px-2' : 'px-3'} mb-2 border-t border-white/5 pt-2`}>
+            <div className={`mt-auto ${effectiveCollapsed ? 'px-2' : 'px-3'} mb-2 border-t border-white/5 pt-2`}>
                 <NavItem
                     icon={user?.avatar_path ? (
                         <div className="w-5 h-5 rounded-full overflow-hidden border border-white/20">
@@ -287,20 +302,21 @@ const Sidebar = ({
                     label="Profile"
                     active={currentFolderId === 'profile'}
                     onClick={() => onNavigate('profile')}
-                    isCollapsed={isCollapsed}
+                    isCollapsed={effectiveCollapsed}
                 />
             </div>
 
             {/* Scan Progress */}
-            <ScanProgress isCollapsed={isCollapsed} />
-        </aside>
+            <ScanProgress isCollapsed={effectiveCollapsed} />
+        </motion.aside>
     );
 };
 
 const NavItem = ({ icon, label, active, onClick, isCollapsed }) => (
-    <button
+    <motion.button
+        layout="position"
         onClick={onClick}
-        className={`flex items-center gap-3 w-full py-2 rounded-lg text-sm font-medium transition-all duration-200
+        className={`flex items-center gap-3 w-full py-2 rounded-lg text-sm font-medium transition-colors duration-200
             ${active
                 ? 'bg-primary/20 text-primary'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5'
@@ -309,16 +325,27 @@ const NavItem = ({ icon, label, active, onClick, isCollapsed }) => (
         title={isCollapsed ? label : ''}
     >
         {icon}
-        {!isCollapsed && <span>{label}</span>}
-    </button>
+        {!isCollapsed && (
+            <motion.span
+                layout
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+            >
+                {label}
+            </motion.span>
+        )}
+    </motion.button>
 );
 
 
 
 const PlaylistItem = ({ playlist, active, onClick, onDelete, isCollapsed }) => (
-    <div
+    <motion.div
+        layout="position"
         onClick={onClick}
-        className={`group flex items-center rounded-lg text-sm transition-all duration-200 cursor-pointer
+        className={`group flex items-center rounded-lg text-sm transition-colors duration-200 cursor-pointer
             ${active
                 ? 'bg-white/10 text-white'
                 : 'text-zinc-300 hover:text-white hover:bg-white/5'
@@ -330,19 +357,30 @@ const PlaylistItem = ({ playlist, active, onClick, onDelete, isCollapsed }) => (
             <div className={`rounded overflow-hidden shrink-0 ${active ? 'opacity-100' : 'opacity-100'} ${isCollapsed ? 'w-full h-full' : 'w-8 h-8'}`}>
                 <PlaylistCover playlist={playlist} className="w-full h-full object-cover" />
             </div>
-            {!isCollapsed && <span className="truncate">{playlist.name}</span>}
+            {!isCollapsed && (
+                <motion.span
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="truncate"
+                >
+                    {playlist.name}
+                </motion.span>
+            )}
         </div>
 
         {!isCollapsed && (
             <button
                 onClick={(e) => { e.stopPropagation(); onDelete(e); }}
-                className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-400 transition-all"
+                className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-400 transition-colors"
                 title="Delete"
             >
                 <IoTrashOutline size={14} />
             </button>
         )}
-    </div>
+    </motion.div>
 );
 
 export default Sidebar;

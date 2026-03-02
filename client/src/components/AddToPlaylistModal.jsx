@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { IoClose, IoAdd, IoMusicalNote } from 'react-icons/io5';
 import axios from 'axios';
 
@@ -59,8 +60,14 @@ const AddToPlaylistModal = ({ song, onClose, onPlaylistUpdate, playlists = [] })
     };
 
     return (
-        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+                className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden"
+                initial={{ opacity: 0, scale: 0.9, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 16 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+            >
 
                 {/* Toast Notification */}
                 {toast && (
@@ -131,7 +138,7 @@ const AddToPlaylistModal = ({ song, onClose, onPlaylistUpdate, playlists = [] })
                         Create New Playlist
                     </button>
                 )}
-            </div>
+            </motion.div>
         </div>
     );
 };

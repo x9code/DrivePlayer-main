@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { IoClose, IoAdd, IoMusicalNote, IoTrashOutline, IoArrowBack, IoPlay, IoPencil } from 'react-icons/io5';
 import SongList from './SongList';
 import axios from 'axios';
@@ -84,7 +85,7 @@ const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, to
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-xl flex flex-col animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-xl flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/5 bg-black/20">
                 <div className="flex items-center gap-4">
@@ -120,7 +121,12 @@ const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, to
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+            <motion.div
+                className="flex-1 overflow-y-auto custom-scrollbar p-6"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+            >
 
                 {/* Playlist View (Details) */}
                 {selectedPlaylist ? (
@@ -185,12 +191,18 @@ const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, to
                         })}
                     </div>
                 )}
-            </div>
+            </motion.div>
 
             {/* Create Modal Overlay */}
             {isCreating && (
                 <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4">
-                    <div className="bg-zinc-900 border border-white/10 p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+                    <motion.div
+                        className="bg-zinc-900 border border-white/10 p-6 rounded-2xl w-full max-w-sm shadow-2xl"
+                        initial={{ opacity: 0, scale: 0.9, y: 16 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 16 }}
+                        transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+                    >
                         <h3 className="text-lg font-bold mb-4">Create Playlist</h3>
                         <form onSubmit={handleCreate} className="flex flex-col gap-4">
                             <input
@@ -217,7 +229,7 @@ const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, to
                                 </button>
                             </div>
                         </form>
-                    </div>
+                    </motion.div>
                 </div>
             )}
         </div>

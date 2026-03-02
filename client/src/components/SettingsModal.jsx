@@ -1,10 +1,17 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { IoClose, IoSettingsOutline } from 'react-icons/io5';
 
 const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient }) => {
     return (
         <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative animate-in fade-in zoom-in duration-200">
+            <motion.div
+                className="w-full max-w-md bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative"
+                initial={{ opacity: 0, scale: 0.9, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 12 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+            >
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors"
@@ -44,7 +51,7 @@ const SettingsModal = ({ onClose, gradientEnabled, onToggleGradient }) => {
                         </p>
                     </div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 };

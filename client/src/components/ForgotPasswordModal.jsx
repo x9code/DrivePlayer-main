@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { IoClose, IoMail, IoArrowForward, IoCheckmarkCircle } from 'react-icons/io5';
 import axios from 'axios';
 
@@ -29,7 +30,13 @@ const ForgotPasswordModal = ({ isOpen, onClose, API_BASE }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-            <div className="relative bg-[#121212] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <motion.div
+                className="relative bg-[#121212] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl"
+                initial={{ opacity: 0, scale: 0.9, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 16 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+            >
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors"
@@ -103,7 +110,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, API_BASE }) => {
                         </button>
                     </div>
                 )}
-            </div>
+            </motion.div>
         </div>
     );
 };
