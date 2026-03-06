@@ -181,7 +181,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
         `, [normalizedEmail, otp]);
 
         const mailOptions = {
-            from: process.env.SMTP_USER,
+            from: `"DrivePlayer" <${process.env.SMTP_USER}>`,
             to: normalizedEmail,
             subject: 'Your DrivePlayer Verification Code',
             text: `Your verification code is: ${otp}. It will expire in 10 minutes.`,
@@ -300,7 +300,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         const resetLink = `http://localhost:5173/reset-password?token=${token}`;
 
         const mailOptions = {
-            from: process.env.SMTP_USER, // Sender address
+            from: `"DrivePlayer" <${process.env.SMTP_USER}>`, // Sender address
             to: normalizedEmail,
             subject: 'Password Reset Request',
             text: `You requested a password reset. Click the link to reset your password: ${resetLink}`,
