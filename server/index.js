@@ -100,6 +100,13 @@ async function initAuthTables() {
             expires_at TIMESTAMP NOT NULL
         )`);
         console.log("OTP verifications table ready");
+
+        await db.query(`CREATE TABLE IF NOT EXISTS password_resets (
+            email TEXT NOT NULL,
+            token TEXT NOT NULL,
+            expires_at TIMESTAMP NOT NULL
+        )`);
+        console.log("Password resets table ready");
     } catch (err) {
         console.error("Error creating auth tables:", err);
     }
@@ -360,7 +367,106 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
     res.json(req.user);
 });
 
-// --- USER DATA ROUTES (Protected) ---
+// Send Delete Account OTP (protected)
+app.post('/api/auth/send-delete-otp', authenticateToken, async (req, res) => {
+    const { email, id } = req.user;
+
+    try {
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        await db.query(`
+            INSERT INTO otp_verifications (email, otp, expires_at)
+            VALUES ($1, $2, NOW() + interval '10 minutes')
+            ON CONFLICT(email) DO UPDATE SET otp=excluded.otp, expires_at=excluded.expires_at
+        `, [email, otp]);
+
+        const mailOptions = {
+            from: `"DrivePlayer" <${process.env.SMTP_USER}>`,
+            to: email,
+            subject: '⚠️ DrivePlayer Account Deletion Request',
+            text: `Your account deletion code is: ${otp}. It expires in 10 minutes. If you did not request this, ignore this email.`,
+            html: `
+                <div style="font-family:sans-serif;max-width:480px;margin:auto">
+                    <h2 style="color:#ef4444">Account Deletion Request</h2>
+                    <p>You requested to permanently delete your DrivePlayer account.</p>
+                    <p>Enter the code below to confirm. <strong>This cannot be undone.</strong></p>
+                    <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#ef4444;text-align:center;padding:16px 0">${otp}</p>
+                    <p style="color:#888;font-size:12px">Expires in 10 minutes. If you didn't request this, ignore this email — your account is safe.</p>
+                </div>`
+        };
+
+        transporter.sendMail(mailOptions, (error) => {
+            if (error) {
+                console.error("Delete OTP email error:", error);
+                return res.status(500).json({ error: "Failed to send email" });
+            }
+            res.json({ success: true, message: "Deletion code sent to your email" });
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// Delete Account (protected)
+app.post('/api/auth/delete-account', authenticateToken, async (req, res) => {
+    const { otp } = req.body;
+    const { email, id } = req.user;
+
+    if (!otp) return res.status(400).json({ error: "OTP required" });
+
+    const otpStr = String(otp).trim();
+
+    try {
+        // Step 1: Check if OTP record exists for this email
+        const { rows: otpRows } = await db.query(
+            "SELECT otp, expires_at FROM otp_verifications WHERE email = $1",
+            [email]
+        );
+
+        if (otpRows.length === 0) {
+            console.warn(`[Auth] Delete account: no OTP found for ${email}`);
+            return res.status(400).json({ error: "No verification code found. Please request a new one." });
+        }
+
+        const record = otpRows[0];
+
+        // Step 2: Check OTP value matches
+        if (String(record.otp).trim() !== otpStr) {
+            console.warn(`[Auth] Delete account: OTP mismatch for ${email}`);
+            return res.status(400).json({ error: "Incorrect code. Please check and try again." });
+        }
+
+        // Step 3: Check expiry via DB time (most reliable)
+        const { rows: expiryRows } = await db.query(
+            "SELECT 1 FROM otp_verifications WHERE email = $1 AND expires_at > NOW()",
+            [email]
+        );
+        if (expiryRows.length === 0) {
+            return res.status(400).json({ error: "Code has expired. Please request a new one." });
+        }
+
+        // Delete all user data — wrapped individually so missing tables don't crash the chain
+        const safeDelete = async (query, params) => {
+            try { await db.query(query, params); }
+            catch (e) { console.warn('[Auth] Delete step skipped (table may not exist):', e.message); }
+        };
+
+        await safeDelete("DELETE FROM otp_verifications WHERE email = $1", [email]);
+        await safeDelete("DELETE FROM favorites WHERE user_id = $1", [id]);
+        await safeDelete("DELETE FROM playlist_songs WHERE playlist_id IN (SELECT id FROM playlists WHERE user_id = $1)", [id]);
+        await safeDelete("DELETE FROM playlists WHERE user_id = $1", [id]);
+        await safeDelete("DELETE FROM password_resets WHERE email = $1", [email]);
+        await db.query("DELETE FROM users WHERE id = $1", [id]); // This one must succeed
+
+        console.log(`[Auth] Account permanently deleted: ${email} (id: ${id})`);
+        res.json({ success: true, message: "Account permanently deleted" });
+    } catch (err) {
+        console.error("[Auth] Delete account error:", err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+
 
 // Favorites
 app.get('/api/favorites', authenticateToken, async (req, res) => {

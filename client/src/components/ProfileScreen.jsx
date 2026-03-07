@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import { IoPersonCircleOutline, IoHeart, IoMusicalNotes, IoLogOutOutline, IoStatsChart, IoCameraReverse } from 'react-icons/io5';
+import { IoPersonCircleOutline, IoHeart, IoMusicalNotes, IoLogOutOutline, IoStatsChart, IoCameraReverse, IoTrashOutline } from 'react-icons/io5';
+import DeleteAccountModal from './DeleteAccountModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -10,6 +11,7 @@ const ProfileScreen = ({ likedSongsCount, playlistsCount }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [isEditingUsername, setIsEditingUsername] = useState(false);
     const [newUsername, setNewUsername] = useState(user.username || user.email.split('@')[0]);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
     const fileInputRef = useRef(null);
 
     const handleFileChange = async (e) => {
@@ -163,10 +165,32 @@ const ProfileScreen = ({ likedSongsCount, playlistsCount }) => {
             </div>
 
 
+            {/* Danger Zone */}
+            <div className="w-full max-w-2xl border border-red-500/10 rounded-2xl p-5 mb-4">
+                <p className="text-xs font-semibold text-red-400/70 uppercase tracking-widest mb-4">Danger Zone</p>
+                <div className="flex items-center justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-medium text-white">Delete Account</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">Permanently delete your account and all data. This cannot be undone.</p>
+                    </div>
+                    <button
+                        onClick={() => setShowDeleteModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/30 transition-all text-sm font-medium shrink-0 active:scale-95"
+                    >
+                        <IoTrashOutline size={15} />
+                        Delete
+                    </button>
+                </div>
+            </div>
 
-            <div className="mt-auto text-zinc-600 text-xs pb-4">
+            <div className="text-zinc-600 text-xs pb-4">
                 DrivePlayer v1.0 • Connected as User #{user.id}
             </div>
+
+            <DeleteAccountModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+            />
         </div>
     );
 };

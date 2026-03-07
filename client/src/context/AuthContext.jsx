@@ -106,7 +106,28 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const sendDeleteOtp = async () => {
+        try {
+            await axios.post(`${API_BASE}/api/auth/send-delete-otp`);
+            return { success: true };
+        } catch (err) {
+            console.error("Send delete OTP error:", err);
+            return { success: false, error: err.response?.data?.error || err.message || "Failed to send code" };
+        }
+    };
+
+    const deleteAccount = async (otp) => {
+        try {
+            await axios.post(`${API_BASE}/api/auth/delete-account`, { otp });
+            return { success: true };
+        } catch (err) {
+            console.error("Delete account error:", err);
+            return { success: false, error: err.response?.data?.error || err.message || "Failed to delete account" };
+        }
+    };
+
     const logout = () => {
+
         localStorage.removeItem('driveplayer_token');
         setToken(null);
         setUser(null);
@@ -123,6 +144,8 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         sendOtp,
+        sendDeleteOtp,
+        deleteAccount,
         logout,
         updateUser,
         isAuthenticated: !!user
