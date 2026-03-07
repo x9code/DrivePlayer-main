@@ -297,7 +297,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
         // Send Email
         // TODO: Configurable Frontend URL
-        const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+        const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
 
         const mailOptions = {
             from: `"DrivePlayer" <${process.env.SMTP_USER}>`, // Sender address
