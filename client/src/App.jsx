@@ -802,16 +802,18 @@ function AppContent() {
             <IoPlay size={20} className="pl-0.5" />
           </button>
 
-          {/* Download Folder Button - Only show when inside a folder */}
-          {currentFolderId && (
-            <button
-              onClick={() => window.open(`${API_BASE}/api/download/folder/${currentFolderId}`, '_blank')}
-              className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:scale-105"
-              title="Download Folder as ZIP"
-            >
-              <IoCloudDownloadOutline size={20} />
-            </button>
-          )}
+          {/* Download Folder Button - Only show when inside a real Drive folder */}
+          {currentFolderId &&
+            !['profile', 'favorites', 'charts'].includes(currentFolderId) &&
+            !currentFolderId.startsWith('lib:') && (
+              <button
+                onClick={() => window.open(`${API_BASE}/api/download/folder/${currentFolderId}`, '_blank')}
+                className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:scale-105"
+                title="Download Folder as ZIP"
+              >
+                <IoCloudDownloadOutline size={20} />
+              </button>
+            )}
 
           {/* Library Button - Mobile Only */}
           {isMobile && (

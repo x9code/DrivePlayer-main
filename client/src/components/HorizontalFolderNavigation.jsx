@@ -270,10 +270,8 @@ const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refre
                         <span>Shuffle</span>
                     </button>
 
-                    <div className="flex flex-col text-white/40">
-                        <span className="text-xs font-bold uppercase tracking-wider">Collection</span>
-                        <span className="text-sm font-medium">Click to browse</span>
-                    </div>
+
+
                 </div>
             </div>
         </div>
