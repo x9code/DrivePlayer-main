@@ -9,6 +9,7 @@ const axios = require('axios');
 
 // Import new services
 // Import new services
+
 const CacheService = require('./services/cacheService');
 const DriveService = require('./services/driveService');
 const MetadataService = require('./services/metadataService');
@@ -165,7 +166,7 @@ const transporter = nodemailer.createTransport({
     secure: process.env.SMTP_SECURE === 'true',
     auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+        pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : ''
     },
     tls: {
         rejectUnauthorized: false // Needed on some hosting platforms
