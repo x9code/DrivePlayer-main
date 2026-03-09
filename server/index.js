@@ -161,20 +161,16 @@ const authenticateToken = (req, res, next) => {
 
 // Configure Nodemailer
 const smtpConfig = {
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
+    family: 4, // Force IPv4 to prevent ENETUNREACH (IPv6 unreachable) errors on Vercel/Render
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : ''
-    }
+    },
+    tls: { rejectUnauthorized: false }
 };
-
-if (process.env.SMTP_HOST && process.env.SMTP_HOST.includes('gmail.com')) {
-    smtpConfig.service = 'gmail';
-} else {
-    smtpConfig.host = process.env.SMTP_HOST;
-    smtpConfig.port = parseInt(process.env.SMTP_PORT, 10) || 587;
-    smtpConfig.secure = process.env.SMTP_SECURE === 'true';
-    smtpConfig.tls = { rejectUnauthorized: false };
-}
 
 const transporter = nodemailer.createTransport(smtpConfig);
 
