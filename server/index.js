@@ -160,20 +160,12 @@ const authenticateToken = (req, res, next) => {
 // --- AUTH ROUTES ---
 
 // Configure Nodemailer
+// Configure Nodemailer
 const smtpConfig = {
-    // 142.250.102.109 is one of the static IPv4 blocks for smtp.gmail.com.
-    // By providing an IP directly, we completely bypass Node.js DNS resolution,
-    // guaranteeing no IPv6 (ENETUNREACH) errors can occur.
-    host: '142.250.102.109',
-    port: 465,
-    secure: true,
+    service: 'gmail',
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : ''
-    },
-    tls: {
-        rejectUnauthorized: false, // Required since we're connecting via IP instead of hostname
-        servername: 'smtp.gmail.com' // Tell Gmail the hostname we intended to connect to
     }
 };
 
