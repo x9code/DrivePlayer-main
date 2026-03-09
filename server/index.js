@@ -162,15 +162,19 @@ const authenticateToken = (req, res, next) => {
 // Configure Nodemailer
 // Configure Nodemailer
 const smtpConfig = {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    // 142.250.102.109 is one of Google's static IPv4 addresses for smtp.gmail.com.
+    // Bypassing DNS completely prevents Vercel from using IPv6 and triggering ENETUNREACH
+    host: '142.250.102.109',
     port: parseInt(process.env.SMTP_PORT, 10) || 587,
     secure: process.env.SMTP_SECURE === 'true', // false for 587
-    family: 4, // Force IPv4 to prevent ENETUNREACH
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : ''
     },
-    tls: { rejectUnauthorized: false }
+    tls: {
+        rejectUnauthorized: false,
+        servername: 'smtp.gmail.com' // Tell Google who we meant to connect to
+    }
 };
 
 const transporter = nodemailer.createTransport(smtpConfig);
