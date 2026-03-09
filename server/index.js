@@ -160,10 +160,13 @@ const authenticateToken = (req, res, next) => {
 // --- AUTH ROUTES ---
 
 // Configure Resend (HTTP-based email, works on Vercel/Render - no SMTP port issues)
-const resend = new Resend(process.env.RESEND_API_KEY);
 const EMAIL_FROM = process.env.EMAIL_FROM || 'DrivePlayer <onboarding@resend.dev>';
 
 const sendEmail = async ({ to, subject, html, text }) => {
+    if (!process.env.RESEND_API_KEY) {
+        throw new Error('RESEND_API_KEY environment variable is not set. Please add it to your hosting dashboard.');
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send({
         from: EMAIL_FROM,
         to,
