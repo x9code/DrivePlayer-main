@@ -162,11 +162,15 @@ const authenticateToken = (req, res, next) => {
 // Configure Nodemailer
 // Configure Nodemailer
 const smtpConfig = {
-    service: 'gmail',
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: process.env.SMTP_SECURE === 'true', // false for 587
+    family: 4, // Force IPv4 to prevent ENETUNREACH
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : ''
-    }
+    },
+    tls: { rejectUnauthorized: false }
 };
 
 const transporter = nodemailer.createTransport(smtpConfig);
