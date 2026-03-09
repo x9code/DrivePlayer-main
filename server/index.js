@@ -161,15 +161,20 @@ const authenticateToken = (req, res, next) => {
 
 // Configure Nodemailer
 const smtpConfig = {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: 465, // Vercel and Render often block 587 outbound. 465 (Implicit TLS) is generally allowed.
-    secure: true, // true for 465, false for other ports
-    family: 4, // Force IPv4 to prevent ENETUNREACH
+    // 142.250.102.109 is one of the static IPv4 blocks for smtp.gmail.com.
+    // By providing an IP directly, we completely bypass Node.js DNS resolution,
+    // guaranteeing no IPv6 (ENETUNREACH) errors can occur.
+    host: '142.250.102.109',
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : ''
     },
-    tls: { rejectUnauthorized: false }
+    tls: {
+        rejectUnauthorized: false, // Required since we're connecting via IP instead of hostname
+        servername: 'smtp.gmail.com' // Tell Gmail the hostname we intended to connect to
+    }
 };
 
 const transporter = nodemailer.createTransport(smtpConfig);
