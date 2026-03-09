@@ -17,7 +17,7 @@ const LocalLibraryService = require('./services/libraryService'); // Rename to a
 const SyncService = require('./services/syncService');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const crypto = require('crypto');
 
 // Secret for JWT (In production, use .env)
@@ -159,25 +159,21 @@ const authenticateToken = (req, res, next) => {
 
 // --- AUTH ROUTES ---
 
-// Configure Nodemailer
-// Configure Nodemailer
-const smtpConfig = {
-    // 142.250.102.109 is one of Google's static IPv4 addresses for smtp.gmail.com.
-    // Bypassing DNS completely prevents Vercel from using IPv6 and triggering ENETUNREACH
-    host: '142.250.102.109',
-    port: parseInt(process.env.SMTP_PORT, 10) || 587,
-    secure: process.env.SMTP_SECURE === 'true', // false for 587
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : ''
-    },
-    tls: {
-        rejectUnauthorized: false,
-        servername: 'smtp.gmail.com' // Tell Google who we meant to connect to
-    }
-};
+// Configure Resend (HTTP-based email, works on Vercel/Render - no SMTP port issues)
+const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAIL_FROM = process.env.EMAIL_FROM || 'DrivePlayer <onboarding@resend.dev>';
 
-const transporter = nodemailer.createTransport(smtpConfig);
+const sendEmail = async ({ to, subject, html, text }) => {
+    const { data, error } = await resend.emails.send({
+        from: EMAIL_FROM,
+        to,
+        subject,
+        html,
+        text
+    });
+    if (error) throw new Error(error.message);
+    return data;
+};
 
 // Send OTP
 app.post('/api/auth/send-otp', async (req, res) => {
@@ -197,24 +193,17 @@ app.post('/api/auth/send-otp', async (req, res) => {
             ON CONFLICT(email) DO UPDATE SET otp=excluded.otp, expires_at=excluded.expires_at
         `, [normalizedEmail, otp]);
 
-        const mailOptions = {
-            from: `"DrivePlayer" <${process.env.SMTP_USER}>`,
+        await sendEmail({
             to: normalizedEmail,
             subject: 'Your DrivePlayer Verification Code',
             text: `Your verification code is: ${otp}. It will expire in 10 minutes.`,
             html: `<p>Your verification code is: <b style="font-size: 24px;">${otp}</b></p><p>This code will expire in 10 minutes.</p>`
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error("Email error:", error);
-                return res.status(500).json({ error: `Failed to send email: ${error.message}` });
-            }
-            res.json({ success: true, message: "OTP sent to email" });
         });
+        res.json({ success: true, message: "OTP sent to email" });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Database error" });
+        const msg = err.message || 'Server error';
+        res.status(500).json({ error: msg.startsWith('Failed') ? msg : `Failed to send email: ${msg}` });
     }
 });
 
@@ -316,21 +305,13 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         // TODO: Configurable Frontend URL
         const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
 
-        const mailOptions = {
-            from: `"DrivePlayer" <${process.env.SMTP_USER}>`, // Sender address
+        await sendEmail({
             to: normalizedEmail,
             subject: 'Password Reset Request',
             text: `You requested a password reset. Click the link to reset your password: ${resetLink}`,
             html: `<p>You requested a password reset.</p><p>Click the link below to reset your password:</p><a href="${resetLink}">${resetLink}</a><p>This link expires in 1 hour.</p>`
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error("Email error:", error);
-                return res.status(500).json({ error: `Failed to send email: ${error.message}` });
-            }
-            res.json({ success: true, message: "Reset link sent to email" });
         });
+        res.json({ success: true, message: "Reset link sent to email" });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Database error" });
@@ -386,8 +367,7 @@ app.post('/api/auth/send-delete-otp', authenticateToken, async (req, res) => {
             ON CONFLICT(email) DO UPDATE SET otp=excluded.otp, expires_at=excluded.expires_at
         `, [email, otp]);
 
-        const mailOptions = {
-            from: `"DrivePlayer" <${process.env.SMTP_USER}>`,
+        await sendEmail({
             to: email,
             subject: '⚠️ DrivePlayer Account Deletion Request',
             text: `Your account deletion code is: ${otp}. It expires in 10 minutes. If you did not request this, ignore this email.`,
@@ -399,15 +379,8 @@ app.post('/api/auth/send-delete-otp', authenticateToken, async (req, res) => {
                     <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#ef4444;text-align:center;padding:16px 0">${otp}</p>
                     <p style="color:#888;font-size:12px">Expires in 10 minutes. If you didn't request this, ignore this email — your account is safe.</p>
                 </div>`
-        };
-
-        transporter.sendMail(mailOptions, (error) => {
-            if (error) {
-                console.error("Delete OTP email error:", error);
-                return res.status(500).json({ error: `Failed to send email: ${error.message}` });
-            }
-            res.json({ success: true, message: "Deletion code sent to your email" });
         });
+        res.json({ success: true, message: "Deletion code sent to your email" });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
