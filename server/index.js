@@ -207,7 +207,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
         transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
                 console.error("Email error:", error);
-                return res.status(500).json({ error: "Failed to send email" });
+                return res.status(500).json({ error: `Failed to send email: ${error.message}` });
             }
             res.json({ success: true, message: "OTP sent to email" });
         });
@@ -326,7 +326,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
                 console.error("Email error:", error);
-                return res.status(500).json({ error: "Failed to send email" });
+                return res.status(500).json({ error: `Failed to send email: ${error.message}` });
             }
             res.json({ success: true, message: "Reset link sent to email" });
         });
@@ -403,7 +403,7 @@ app.post('/api/auth/send-delete-otp', authenticateToken, async (req, res) => {
         transporter.sendMail(mailOptions, (error) => {
             if (error) {
                 console.error("Delete OTP email error:", error);
-                return res.status(500).json({ error: "Failed to send email" });
+                return res.status(500).json({ error: `Failed to send email: ${error.message}` });
             }
             res.json({ success: true, message: "Deletion code sent to your email" });
         });
