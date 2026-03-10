@@ -1009,7 +1009,8 @@ function AppWrapper() {
     return <ResetPasswordScreen />;
   }
 
-  if (!user) return <AuthScreen />;
+  // Sign-in page hidden temporarily — uncomment to re-enable auth
+  // if (!user) return <AuthScreen />;
 
   return <AppContent />;
 }
