@@ -10,28 +10,25 @@ class LibraryService {
         try {
             // Favorites
             await pool.query(`CREATE TABLE IF NOT EXISTS user_favorites (
-                user_id INTEGER,
+                username TEXT,
                 file_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (user_id, file_id)
+                PRIMARY KEY (username, file_id)
             )`);
-            // Note: foreign keys to 'users' table omitted here because 'users' table is created in index.js. 
-            // We can add the foreign keys later if strictly needed, but ensuring they don't break if users table isn't created yet.
-            // In index.js we will also need to update users table schema.
 
             // Play Counts
             await pool.query(`CREATE TABLE IF NOT EXISTS user_play_counts (
-                user_id INTEGER,
+                username TEXT,
                 file_id TEXT,
                 count INTEGER DEFAULT 1,
                 last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (user_id, file_id)
+                PRIMARY KEY (username, file_id)
             )`);
 
-            // Playlists (Created Before Playlist Songs)
+            // Playlists
             await pool.query(`CREATE TABLE IF NOT EXISTS playlists (
                 id TEXT PRIMARY KEY,
-                user_id INTEGER,
+                username TEXT,
                 name TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )`);
@@ -45,13 +42,6 @@ class LibraryService {
                 CONSTRAINT fk_playlist FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
             )`);
 
-            // Password Resets
-            await pool.query(`CREATE TABLE IF NOT EXISTS password_resets (
-                email TEXT NOT NULL,
-                token TEXT NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )`);
             console.log("[Database] User tables ready");
         } catch (err) {
             console.error("[Database] Error creating user tables:", err);
@@ -60,31 +50,31 @@ class LibraryService {
 
     // --- USER SPECIFIC METHODS ---
 
-    async getFavorites(userId) {
+    async getFavorites(username) {
         const sql = `
             SELECT f.* FROM files f
             JOIN user_favorites uf ON f.id = uf.file_id
-            WHERE uf.user_id = $1 AND f.is_trashed = 0
+            WHERE uf.username = $1 AND f.is_trashed = 0
         `;
-        const { rows } = await pool.query(sql, [userId]);
+        const { rows } = await pool.query(sql, [username]);
         return rows;
     }
 
-    async addFavorite(userId, fileId) {
-        const sql = `INSERT INTO user_favorites (user_id, file_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`;
-        const { rowCount } = await pool.query(sql, [userId, fileId]);
+    async addFavorite(username, fileId) {
+        const sql = `INSERT INTO user_favorites (username, file_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`;
+        const { rowCount } = await pool.query(sql, [username, fileId]);
         return rowCount;
     }
 
-    async removeFavorite(userId, fileId) {
-        const sql = `DELETE FROM user_favorites WHERE user_id = $1 AND file_id = $2`;
-        const { rowCount } = await pool.query(sql, [userId, fileId]);
+    async removeFavorite(username, fileId) {
+        const sql = `DELETE FROM user_favorites WHERE username = $1 AND file_id = $2`;
+        const { rowCount } = await pool.query(sql, [username, fileId]);
         return rowCount;
     }
 
-    async getPlaylists(userId) {
-        const sql = `SELECT * FROM playlists WHERE user_id = $1 ORDER BY created_at DESC`;
-        const { rows: playlists } = await pool.query(sql, [userId]);
+    async getPlaylists(username) {
+        const sql = `SELECT * FROM playlists WHERE username = $1 ORDER BY created_at DESC`;
+        const { rows: playlists } = await pool.query(sql, [username]);
 
         // Enrich with songs
         for (const p of playlists) {
@@ -101,25 +91,45 @@ class LibraryService {
         return playlists;
     }
 
-    async createPlaylist(userId, playlistId, name) {
-        const sql = `INSERT INTO playlists (id, user_id, name) VALUES ($1, $2, $3)`;
-        const { rowCount } = await pool.query(sql, [playlistId, userId, name]);
+    async createPlaylist(username, playlistId, name) {
+        const sql = `INSERT INTO playlists (id, username, name) VALUES ($1, $2, $3)`;
+        const { rowCount } = await pool.query(sql, [playlistId, username, name]);
         return rowCount;
     }
 
-    async deletePlaylist(userId, playlistId) {
-        const sql = `DELETE FROM playlists WHERE id = $1 AND user_id = $2`;
-        const { rowCount } = await pool.query(sql, [playlistId, userId]);
+    async deletePlaylist(username, playlistId) {
+        const sql = `DELETE FROM playlists WHERE id = $1 AND username = $2`;
+        const { rowCount } = await pool.query(sql, [playlistId, username]);
         return rowCount;
     }
 
-    async addToPlaylist(userId, playlistId, fileId) {
+    async addToPlaylist(username, playlistId, fileId) {
         // Verify ownership first
-        const { rows } = await pool.query("SELECT id FROM playlists WHERE id = $1 AND user_id = $2", [playlistId, userId]);
+        const { rows } = await pool.query("SELECT id FROM playlists WHERE id = $1 AND username = $2", [playlistId, username]);
         if (rows.length === 0) throw new Error("Playlist not found or access denied");
 
         const sql = `INSERT INTO playlist_songs (playlist_id, file_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`;
         const { rowCount } = await pool.query(sql, [playlistId, fileId]);
+        return rowCount;
+    }
+
+    // Play Counts Methods
+    async getPlayCounts(username) {
+        const sql = `SELECT file_id, count FROM user_play_counts WHERE username = $1`;
+        const { rows } = await pool.query(sql, [username]);
+        const playCounts = {};
+        rows.forEach(r => playCounts[r.file_id] = r.count);
+        return playCounts;
+    }
+
+    async incrementPlayCount(username, fileId) {
+        const sql = `
+            INSERT INTO user_play_counts (username, file_id, count, last_played)
+            VALUES ($1, $2, 1, CURRENT_TIMESTAMP)
+            ON CONFLICT (username, file_id)
+            DO UPDATE SET count = user_play_counts.count + 1, last_played = CURRENT_TIMESTAMP
+        `;
+        const { rowCount } = await pool.query(sql, [username, fileId]);
         return rowCount;
     }
 

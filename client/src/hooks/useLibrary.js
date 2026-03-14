@@ -10,22 +10,13 @@ export function useLibrary(token) {
     const [currentFolderName, setCurrentFolderName] = useState('Library');
     const [likedSongs, setLikedSongs] = useState([]);
     const [playlists, setPlaylists] = useState([]);
-    const [playCounts, setPlayCounts] = useState(() => {
-        const saved = localStorage.getItem('driveplayer_playcounts');
-        try {
-            return saved ? JSON.parse(saved) : {};
-        } catch (e) {
-            return {};
-        }
-    });
+    const [playCounts, setPlayCounts] = useState({});
 
     const rootFolderId = useRef(null);
     const fileCache = useRef({});
     const scrollPositions = useRef({});
 
-    useEffect(() => {
-        localStorage.setItem('driveplayer_playcounts', JSON.stringify(playCounts));
-    }, [playCounts]);
+
 
     const refreshFavorites = useCallback(async () => {
         if (!token) return;
@@ -43,10 +34,28 @@ export function useLibrary(token) {
         } catch (e) { console.error(e); }
     }, [token]);
 
+    const refreshPlayCounts = useCallback(async () => {
+        if (!token) return;
+        try {
+            const res = await axios.get(`${API_BASE}/api/playcounts`);
+            setPlayCounts(res.data);
+        } catch (e) { console.error(e); }
+    }, [token]);
+
+    const incrementPlayCount = useCallback(async (fileId) => {
+        if (!token) return;
+        // Optimistic UI update
+        setPlayCounts(prev => ({ ...prev, [fileId]: (prev[fileId] || 0) + 1 }));
+        try {
+            await axios.post(`${API_BASE}/api/playcounts/${fileId}`);
+        } catch (e) { console.error("Failed to increment play count on server", e); }
+    }, [token]);
+
     useEffect(() => {
         refreshFavorites();
         refreshPlaylists();
-    }, [refreshFavorites, refreshPlaylists]);
+        refreshPlayCounts();
+    }, [refreshFavorites, refreshPlaylists, refreshPlayCounts]);
 
     const fetchFiles = useCallback(async (folderId = null) => {
         const cacheKey = folderId || 'root';
@@ -224,8 +233,7 @@ export function useLibrary(token) {
     return {
         files, loading, currentFolderId, currentFolderName,
         likedSongs, playlists, playCounts,
-        setCurrentFolderId, setCurrentFolderName, setFiles, setLoading,
-        fetchFiles, searchFiles, refreshPlaylists, setLikedSongs,
+        fetchFiles, searchFiles, refreshPlaylists, setLikedSongs, incrementPlayCount,
         rootFolderId, scrollPositions // Adding these for completeness
     };
 }

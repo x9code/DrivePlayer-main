@@ -1,28 +1,22 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { IoMusicalNotes, IoArrowForward, IoPersonAdd, IoLogIn, IoAlertCircle, IoEye, IoEyeOff } from 'react-icons/io5';
-import ForgotPasswordModal from './ForgotPasswordModal';
+import { IoMusicalNotes, IoArrowForward, IoAlertCircle, IoEye, IoEyeOff } from 'react-icons/io5';
 
 const AuthScreen = () => {
-    const { login, register, sendOtp } = useAuth();
+    const { login, register } = useAuth();
     const [isLogin, setIsLogin] = useState(true);
-    const [isOtpSent, setIsOtpSent] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
-    const [showForgotModal, setShowForgotModal] = useState(false);
-    const API_BASE = import.meta.env.VITE_API_URL || '';
 
     const [formData, setFormData] = useState({
-        email: '',
-        password: '',
-        otp: ''
+        username: '',
+        password: ''
     });
 
     const handleChange = (e) => {
-        const value = e.target.name === 'email' ? e.target.value.toLowerCase() : e.target.value;
-        setFormData({ ...formData, [e.target.name]: value });
-        setError(null); // Clear error on type
+        setFormData({ ...formData, [e.target.name]: e.target.value.trim() });
+        setError(null);
     };
 
     const handleSubmit = async (e) => {
@@ -31,32 +25,11 @@ const AuthScreen = () => {
         setError(null);
 
         if (isLogin) {
-            const result = await login(formData.email, formData.password);
-            if (!result.success) {
-                setError(result.error);
-            }
+            const result = await login(formData.username, formData.password);
+            if (!result.success) setError(result.error);
         } else {
-            if (!isOtpSent) {
-                // Step 1: Send OTP
-                const result = await sendOtp(formData.email);
-                if (result.success) {
-                    setIsOtpSent(true);
-                    setError(null); // Clear errors
-                } else {
-                    setError(result.error);
-                }
-            } else {
-                // Step 2: Register with OTP
-                if (!formData.otp) {
-                    setError("Please enter the OTP sent to your email.");
-                    setLoading(false);
-                    return;
-                }
-                const result = await register(formData.email, formData.password, formData.otp);
-                if (!result.success) {
-                    setError(result.error);
-                }
-            }
+            const result = await register(formData.username, formData.password);
+            if (!result.success) setError(result.error);
         }
         setLoading(false);
     };
@@ -70,8 +43,6 @@ const AuthScreen = () => {
 
             {/* Auth Card */}
             <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl z-10 relative overflow-hidden">
-
-                {/* Header */}
                 <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-gradient-to-tr from-purple-600 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/30">
                         <IoMusicalNotes className="text-3xl text-white" />
@@ -84,9 +55,7 @@ const AuthScreen = () => {
                     </p>
                 </div>
 
-                {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-5">
-
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-3 text-red-200 text-sm animate-in fade-in slide-in-from-top-2">
                             <IoAlertCircle size={20} className="shrink-0" />
@@ -96,14 +65,14 @@ const AuthScreen = () => {
 
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 ml-1">Email</label>
+                            <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 ml-1">Username</label>
                             <input
-                                type="email"
-                                name="email"
-                                value={formData.email}
+                                type="text"
+                                name="username"
+                                value={formData.username}
                                 onChange={handleChange}
                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
-                                placeholder="you@example.com"
+                                placeholder="your_username"
                                 required
                             />
                         </div>
@@ -117,7 +86,7 @@ const AuthScreen = () => {
                                     onChange={handleChange}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all pr-10 disabled:opacity-50"
                                     placeholder="••••••••"
-                                    required={isLogin || isOtpSent}
+                                    required
                                     minLength={6}
                                 />
                                 <button
@@ -129,52 +98,6 @@ const AuthScreen = () => {
                                 </button>
                             </div>
                         </div>
-
-                        {/* OTP Field (Visible only during Registration Step 2) */}
-                        {!isLogin && isOtpSent && (
-                            <div>
-                                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 ml-1 flex justify-between">
-                                    <span>Verification Code</span>
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            const result = await sendOtp(formData.email);
-                                            if (result.success) {
-                                                alert("OTP Resent!");
-                                            } else {
-                                                setError(result.error);
-                                            }
-                                        }}
-                                        className="text-[10px] text-purple-400 hover:text-purple-300 hover:underline cursor-pointer"
-                                    >
-                                        Resend OTP
-                                    </button>
-                                </label>
-                                <input
-                                    type="text"
-                                    name="otp"
-                                    value={formData.otp}
-                                    onChange={handleChange}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
-                                    placeholder="Enter 6-digit OTP"
-                                    required
-                                    maxLength={6}
-                                />
-                            </div>
-                        )}
-
-                        {/* Forgot Password Link */}
-                        {isLogin && (
-                            <div className="flex justify-end">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowForgotModal(true)}
-                                    className="text-xs text-zinc-400 hover:text-white transition-colors"
-                                >
-                                    Forgot Password?
-                                </button>
-                            </div>
-                        )}
                     </div>
 
                     <button
@@ -186,23 +109,21 @@ const AuthScreen = () => {
                             <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                         ) : (
                             <>
-                                {isLogin ? 'Sign In' : (isOtpSent ? 'Verify & Register' : 'Send Verification Code')}
+                                {isLogin ? 'Sign In' : 'Register'}
                                 <IoArrowForward size={18} />
                             </>
                         )}
                     </button>
                 </form>
 
-                {/* Toggle Mode */}
                 <div className="mt-8 pt-6 border-t border-white/5 text-center">
                     <p className="text-zinc-400 text-sm">
                         {isLogin ? "Don't have an account?" : "Already have an account?"}
                         <button
                             onClick={() => {
                                 setIsLogin(!isLogin);
-                                setIsOtpSent(false); // Reset OTP state
                                 setError(null);
-                                setFormData({ email: '', password: '', otp: '' });
+                                setFormData({ username: '', password: '' });
                             }}
                             className="ml-2 text-white font-medium hover:underline focus:outline-none"
                         >
@@ -211,12 +132,6 @@ const AuthScreen = () => {
                     </p>
                 </div>
             </div>
-
-            <ForgotPasswordModal
-                isOpen={showForgotModal}
-                onClose={() => setShowForgotModal(false)}
-                API_BASE={API_BASE}
-            />
         </div>
     );
 };

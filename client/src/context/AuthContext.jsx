@@ -30,11 +30,22 @@ export const AuthProvider = ({ children }) => {
         const initAuth = async () => {
             if (token) {
                 try {
-                    const res = await axios.get(`${API_BASE}/api/auth/me`);
+                    // Timeout after 8s to avoid blank screen on cold start
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 8000);
+                    const res = await axios.get(`${API_BASE}/api/auth/me`, {
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeout);
                     setUser(res.data);
                 } catch (err) {
-                    console.error("Auth Init Failed:", err);
-                    logout(); // Invalid token
+                    if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
+                        // Server timeout — skip auth silently, app still loads
+                        console.warn('Auth check timed out (cold start?). Proceeding without auth.');
+                    } else {
+                        console.error("Auth Init Failed:", err);
+                        logout(); // Invalid token
+                    }
                 }
             }
             setLoading(false);
@@ -42,9 +53,9 @@ export const AuthProvider = ({ children }) => {
         initAuth();
     }, [token]);
 
-    const login = async (email, password) => {
+    const login = async (username, password) => {
         try {
-            const res = await axios.post(`${API_BASE}/api/auth/login`, { email, password });
+            const res = await axios.post(`${API_BASE}/api/auth/login`, { username, password });
 
             // Validation: Detect HTML response (SPA Fallback)
             const contentType = res.headers['content-type'];
@@ -69,19 +80,9 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const sendOtp = async (email) => {
+    const register = async (username, password) => {
         try {
-            const res = await axios.post(`${API_BASE}/api/auth/send-otp`, { email });
-            return { success: true };
-        } catch (err) {
-            console.error("OTP Error:", err);
-            return { success: false, error: err.response?.data?.error || err.message || "Failed to send OTP" };
-        }
-    };
-
-    const register = async (email, password, otp) => {
-        try {
-            const res = await axios.post(`${API_BASE}/api/auth/register`, { email, password, otp });
+            const res = await axios.post(`${API_BASE}/api/auth/register`, { username, password });
 
             // Validation: Detect HTML response (SPA Fallback)
             const contentType = res.headers['content-type'];
@@ -106,26 +107,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const sendDeleteOtp = async () => {
-        try {
-            await axios.post(`${API_BASE}/api/auth/send-delete-otp`);
-            return { success: true };
-        } catch (err) {
-            console.error("Send delete OTP error:", err);
-            return { success: false, error: err.response?.data?.error || err.message || "Failed to send code" };
-        }
-    };
-
-    const deleteAccount = async (otp) => {
-        try {
-            await axios.post(`${API_BASE}/api/auth/delete-account`, { otp });
-            return { success: true };
-        } catch (err) {
-            console.error("Delete account error:", err);
-            return { success: false, error: err.response?.data?.error || err.message || "Failed to delete account" };
-        }
-    };
-
     const logout = () => {
 
         localStorage.removeItem('driveplayer_token');
@@ -143,9 +124,6 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         register,
-        sendOtp,
-        sendDeleteOtp,
-        deleteAccount,
         logout,
         updateUser,
         isAuthenticated: !!user

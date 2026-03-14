@@ -1,28 +1,31 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import { Analytics } from "@vercel/analytics/react"
 import { BrowserRouter, useLocation } from 'react-router-dom'; // [NEW]
 import axios from 'axios';
-import Player from './components/Player'
 import SongList from './components/SongList'
-import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline } from 'react-icons/io5'
-import SettingsModal from './components/SettingsModal'
-import AddToPlaylistModal from './components/AddToPlaylistModal'
-
-import LibraryModal from './components/LibraryModal'
 import Sidebar from './components/Sidebar' // [NEW]
 import ConfirmModal from './components/ConfirmModal'
-import { AlbumGrid, ArtistGrid } from './components/LibraryViews'
 import HorizontalFolderNavigation from './components/HorizontalFolderNavigation'
+import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline } from 'react-icons/io5'
+
+// Lazy-loaded: only downloaded when needed (reduces initial bundle)
+const Player = lazy(() => import('./components/Player'));
+const SettingsModal = lazy(() => import('./components/SettingsModal'));
+const AddToPlaylistModal = lazy(() => import('./components/AddToPlaylistModal'));
+const LibraryModal = lazy(() => import('./components/LibraryModal'));
+const ProfileScreen = lazy(() => import('./components/ProfileScreen'));
+const AuthScreen = lazy(() => import('./components/AuthScreen'));
+const ResetPasswordScreen = lazy(() => import('./components/ResetPasswordScreen'));
+const AlbumGridLazy = lazy(() => import('./components/LibraryViews').then(m => ({ default: m.AlbumGrid })));
+const ArtistGridLazy = lazy(() => import('./components/LibraryViews').then(m => ({ default: m.ArtistGrid })));
 
 import { cleanTitle } from './utils/format';
-import ProfileScreen from './components/ProfileScreen'; // [NEW]
-
 import { AuthProvider, useAuth } from './context/AuthContext'; // [NEW]
-import AuthScreen from './components/AuthScreen'; // [NEW]
-import ResetPasswordScreen from './components/ResetPasswordScreen'; // [NEW]
-
 import { useTheme } from './hooks/useTheme';
 import { useLibrary } from './hooks/useLibrary';
+
+// Null fallback for lazy modals (no visual flash since they're overlays)
+const NullFallback = () => null;
 
 // Environment variable for API URL (Production vs Dev)
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -47,8 +50,7 @@ function AppContent() {
   const {
     files, loading, currentFolderId, currentFolderName,
     likedSongs, playlists, playCounts,
-    setCurrentFolderId, setCurrentFolderName, setFiles, setLoading,
-    fetchFiles, searchFiles, refreshPlaylists, setLikedSongs,
+    fetchFiles, searchFiles, refreshPlaylists, setLikedSongs, incrementPlayCount,
     rootFolderId, scrollPositions
   } = useLibrary(token);
 
@@ -614,7 +616,7 @@ function AppContent() {
   useEffect(() => {
     if (currentSong && isPlaying) {
       const timer = setTimeout(() => {
-        setPlayCounts(prev => ({ ...prev, [currentSong.id]: (prev[currentSong.id] || 0) + 1 }));
+        incrementPlayCount(currentSong.id);
       }, 5000);
       return () => clearTimeout(timer);
     }
@@ -862,22 +864,28 @@ function AppContent() {
       <main ref={mainScrollRef} className={`fixed inset-0 pt-20 overflow-y-auto custom-scrollbar pb-32 z-0 transition-all duration-300 ${!isMobile ? (isSidebarCollapsed ? 'pl-20' : 'pl-64') : ''}`}>
 
         {currentFolderId === 'profile' ? (
-          <ProfileScreen likedSongsCount={(likedSongs || []).length} playlistsCount={(playlists || []).length} />
+          <Suspense fallback={<div className="h-full flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/10 border-t-primary rounded-full animate-spin" /></div>}>
+            <ProfileScreen likedSongsCount={(likedSongs || []).length} playlistsCount={(playlists || []).length} />
+          </Suspense>
         ) : currentFolderId === 'lib:albums' ? (
-          <AlbumGrid
-            files={files} // Use raw files for grid grouping
-            onAlbumClick={(name) => handleFolderClick('lib:album:' + encodeURIComponent(name))}
-            onPlay={handleAlbumPlay}
-            onShuffle={handleAlbumShuffle}
-            viewMode={viewMode}
-          />
+          <Suspense fallback={<div className="h-full flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/10 border-t-primary rounded-full animate-spin" /></div>}>
+            <AlbumGridLazy
+              files={files}
+              onAlbumClick={(name) => handleFolderClick('lib:album:' + encodeURIComponent(name))}
+              onPlay={handleAlbumPlay}
+              onShuffle={handleAlbumShuffle}
+              viewMode={viewMode}
+            />
+          </Suspense>
         ) : currentFolderId === 'lib:artists' ? (
-          <ArtistGrid
-            files={files}
-            onArtistClick={(name) => handleFolderClick('lib:artist:' + encodeURIComponent(name))}
-            onPlay={handleArtistPlay}
-            onShuffle={handleArtistShuffle}
-          />
+          <Suspense fallback={<div className="h-full flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/10 border-t-primary rounded-full animate-spin" /></div>}>
+            <ArtistGridLazy
+              files={files}
+              onArtistClick={(name) => handleFolderClick('lib:artist:' + encodeURIComponent(name))}
+              onPlay={handleArtistPlay}
+              onShuffle={handleArtistShuffle}
+            />
+          </Suspense>
         ) : ((currentFolderId === null || currentFolderId === rootFolderId.current) && files.some(f => f.mimeType === 'application/vnd.google-apps.folder')) ? (
           <HorizontalFolderNavigation
             folders={files.filter(f => f.mimeType === 'application/vnd.google-apps.folder')}
@@ -910,69 +918,73 @@ function AppContent() {
       </main>
 
       {/* Player */}
-      <Player
-        currentSong={currentSong}
-        isPlaying={isPlaying}
-        setIsPlaying={setIsPlaying}
-        onNext={handleNext}
-        onPrev={handlePrev}
-        isShuffle={isShuffle}
-        repeatMode={repeatMode}
-        repeatCount={repeatCount}
-        repeatRemaining={repeatRemaining}
-        onRepeatCountChange={setRepeatCount}
-        onShuffleToggle={() => setIsShuffle(!isShuffle)}
-        onRepeatToggle={toggleRepeat}
-        cleanTitle={cleanTitle}
-        likedSongs={likedSongs}
-        toggleLike={toggleLike}
-        themeColor={themeColor}
-        hasSidebar={!isMobile}
-        onAddPlaylist={(song) => setSongToAdd(song)}
-      />
+      <Suspense fallback={<NullFallback />}>
+        <Player
+          currentSong={currentSong}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+          onNext={handleNext}
+          onPrev={handlePrev}
+          isShuffle={isShuffle}
+          repeatMode={repeatMode}
+          repeatCount={repeatCount}
+          repeatRemaining={repeatRemaining}
+          onRepeatCountChange={setRepeatCount}
+          onShuffleToggle={() => setIsShuffle(!isShuffle)}
+          onRepeatToggle={toggleRepeat}
+          cleanTitle={cleanTitle}
+          likedSongs={likedSongs}
+          toggleLike={toggleLike}
+          themeColor={themeColor}
+          hasSidebar={!isMobile}
+          onAddPlaylist={(song) => setSongToAdd(song)}
+        />
+      </Suspense>
 
-      {/* Modals */}
-      {
-        showSettings && (
-          <SettingsModal
-            onClose={() => setShowSettings(false)}
-            gradientEnabled={gradientEnabled}
-            onToggleGradient={() => setGradientEnabled(!gradientEnabled)}
-            defaultColor={defaultColor}
-            onSetDefaultColor={setDefaultColor}
-            useAlbumColor={useAlbumColor}
-            onSetUseAlbumColor={setUseAlbumColor}
-          />
-        )
-      }
+      {/* Modals - lazy loaded, null fallback so there's no visual flash */}
+      <Suspense fallback={<NullFallback />}>
+        {
+          showSettings && (
+            <SettingsModal
+              onClose={() => setShowSettings(false)}
+              gradientEnabled={gradientEnabled}
+              onToggleGradient={() => setGradientEnabled(!gradientEnabled)}
+              defaultColor={defaultColor}
+              onSetDefaultColor={setDefaultColor}
+              useAlbumColor={useAlbumColor}
+              onSetUseAlbumColor={setUseAlbumColor}
+            />
+          )
+        }
 
-      {
-        showLibrary && (
-          <LibraryModal
-            onClose={() => setShowLibrary(false)}
-            onPlay={handlePlay}
-            currentSong={currentSong}
-            cleanTitle={cleanTitle}
-            likedSongs={likedSongs}
-            toggleLike={toggleLike}
-            playlists={playlists}
-            onPlaylistUpdate={refreshPlaylists}
-          />
-        )
-      }
+        {
+          showLibrary && (
+            <LibraryModal
+              onClose={() => setShowLibrary(false)}
+              onPlay={handlePlay}
+              currentSong={currentSong}
+              cleanTitle={cleanTitle}
+              likedSongs={likedSongs}
+              toggleLike={toggleLike}
+              playlists={playlists}
+              onPlaylistUpdate={refreshPlaylists}
+            />
+          )
+        }
 
-      {
-        songToAdd && (
-          <AddToPlaylistModal
-            song={songToAdd}
-            playlists={playlists}
-            onClose={() => setSongToAdd(null)}
-            onPlaylistUpdate={() => {
-              refreshPlaylists();
-            }}
-          />
-        )
-      }
+        {
+          songToAdd && (
+            <AddToPlaylistModal
+              song={songToAdd}
+              playlists={playlists}
+              onClose={() => setSongToAdd(null)}
+              onPlaylistUpdate={() => {
+                refreshPlaylists();
+              }}
+            />
+          )
+        }
+      </Suspense>
 
       <ConfirmModal
         isOpen={confirmModal.isOpen}
@@ -1002,17 +1014,19 @@ function AppWrapper() {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) return <div className="h-screen w-full bg-black flex items-center justify-center text-white">Loading...</div>;
+  // While auth is resolving, show nothing (initial-loader from index.html handles this)
+  if (loading) return null;
 
-  // Allow reset password route without auth
-  if (location.pathname.startsWith('/reset-password')) {
-    return <ResetPasswordScreen />;
+  // Require authentication before rendering the app
+  if (!user) {
+    return (
+      <Suspense fallback={null}>
+        <AuthScreen />
+      </Suspense>
+    );
   }
 
-  // Sign-in page hidden temporarily — uncomment to re-enable auth
-  // if (!user) return <AuthScreen />;
-
-  return <AppContent />;
+  return <AppContent />
 }
 
 export default App;

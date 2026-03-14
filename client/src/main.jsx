@@ -3,6 +3,24 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
+// --- Keep Server Alive (prevent Render cold starts) ---
+const API_BASE = import.meta.env.VITE_API_URL || '';
+function keepServerAlive() {
+  fetch(`${API_BASE}/`, { method: 'GET', cache: 'no-store' }).catch(() => { });
+}
+// Ping immediately, then every 10 minutes
+keepServerAlive();
+setInterval(keepServerAlive, 10 * 60 * 1000);
+
+// --- Hide initial loader when React mounts ---
+function hideInitialLoader() {
+  const loader = document.getElementById('initial-loader');
+  if (loader) {
+    loader.classList.add('hidden');
+    setTimeout(() => loader.remove(), 400);
+  }
+}
+
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -16,10 +34,12 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     console.error("Uncaught error:", error, errorInfo);
     this.setState({ errorInfo });
+    hideInitialLoader();
   }
 
   render() {
     if (this.state.hasError) {
+      hideInitialLoader();
       return (
         <div style={{ padding: '2rem', color: '#ff5555', background: '#121212', height: '100vh', overflow: 'auto', fontFamily: 'monospace' }}>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '1rem', borderBottom: '1px solid #333', paddingBottom: '0.5rem' }}>Application Crashed</h1>
@@ -42,10 +62,15 @@ class ErrorBoundary extends Component {
   }
 }
 
-createRoot(document.getElementById('root')).render(
+const root = createRoot(document.getElementById('root'));
+root.render(
   <StrictMode>
     <ErrorBoundary>
       <App />
     </ErrorBoundary>
   </StrictMode>,
-)
+);
+
+// Hide loader after React renders
+hideInitialLoader();
+

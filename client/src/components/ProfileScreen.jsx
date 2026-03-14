@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import { IoPersonCircleOutline, IoHeart, IoMusicalNotes, IoLogOutOutline, IoStatsChart, IoCameraReverse, IoTrashOutline } from 'react-icons/io5';
-import DeleteAccountModal from './DeleteAccountModal';
+import { IoPersonCircleOutline, IoHeart, IoMusicalNotes, IoLogOutOutline, IoCameraReverse } from 'react-icons/io5';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -10,8 +9,7 @@ const ProfileScreen = ({ likedSongsCount, playlistsCount }) => {
     const { user, logout, updateUser } = useAuth();
     const [isUploading, setIsUploading] = useState(false);
     const [isEditingUsername, setIsEditingUsername] = useState(false);
-    const [newUsername, setNewUsername] = useState(user.username || user.email.split('@')[0]);
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [newUsername, setNewUsername] = useState(user.username);
     const fileInputRef = useRef(null);
 
     const handleFileChange = async (e) => {
@@ -41,7 +39,6 @@ const ProfileScreen = ({ likedSongsCount, playlistsCount }) => {
             setIsUploading(false);
         }
     };
-
 
     const handleUsernameUpdate = async () => {
         if (!newUsername.trim()) return;
@@ -91,7 +88,7 @@ const ProfileScreen = ({ likedSongsCount, playlistsCount }) => {
                             />
                         ) : (
                             <span className="text-4xl font-bold text-white/90">
-                                {user.email[0].toUpperCase()}
+                                {user.username[0].toUpperCase()}
                             </span>
                         )}
 
@@ -131,14 +128,13 @@ const ProfileScreen = ({ likedSongsCount, playlistsCount }) => {
                 ) : (
                     <div className="flex items-center gap-2 mb-2 group">
                         <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-                            {user.username || user.email.split('@')[0]}
+                            {user.username}
                         </h1>
                         <button onClick={() => setIsEditingUsername(true)} className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-white transition-opacity text-sm">
                             Edit
                         </button>
                     </div>
                 )}
-                <p className="text-zinc-500 font-mono text-sm">{user.email}</p>
             </div>
 
             {/* Stats Grid */}
@@ -164,33 +160,9 @@ const ProfileScreen = ({ likedSongsCount, playlistsCount }) => {
                 </div>
             </div>
 
-
-            {/* Danger Zone */}
-            <div className="w-full max-w-2xl border border-red-500/10 rounded-2xl p-5 mb-4">
-                <p className="text-xs font-semibold text-red-400/70 uppercase tracking-widest mb-4">Danger Zone</p>
-                <div className="flex items-center justify-between gap-4">
-                    <div>
-                        <p className="text-sm font-medium text-white">Delete Account</p>
-                        <p className="text-xs text-zinc-500 mt-0.5">Permanently delete your account and all data. This cannot be undone.</p>
-                    </div>
-                    <button
-                        onClick={() => setShowDeleteModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/30 transition-all text-sm font-medium shrink-0 active:scale-95"
-                    >
-                        <IoTrashOutline size={15} />
-                        Delete
-                    </button>
-                </div>
-            </div>
-
             <div className="text-zinc-600 text-xs pb-4">
-                DrivePlayer v1.0 • Connected as User #{user.id}
+                DrivePlayer v1.0 • Connected as User {user.username}
             </div>
-
-            <DeleteAccountModal
-                isOpen={showDeleteModal}
-                onClose={() => setShowDeleteModal(false)}
-            />
         </div>
     );
 };
