@@ -231,7 +231,7 @@ export function useLibrary(token) {
     }, [currentFolderId, fetchFiles]);
 
     return {
-        files, loading, currentFolderId, currentFolderName,
+        files, setFiles, loading, setLoading, currentFolderId, setCurrentFolderId, currentFolderName, setCurrentFolderName,
         likedSongs, playlists, playCounts,
         fetchFiles, searchFiles, refreshPlaylists, setLikedSongs, incrementPlayCount,
         rootFolderId, scrollPositions // Adding these for completeness

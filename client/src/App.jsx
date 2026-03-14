@@ -48,7 +48,7 @@ function AppContent() {
   } = useTheme();
 
   const {
-    files, loading, currentFolderId, currentFolderName,
+    files, setFiles, loading, setLoading, currentFolderId, setCurrentFolderId, currentFolderName, setCurrentFolderName,
     likedSongs, playlists, playCounts,
     fetchFiles, searchFiles, refreshPlaylists, setLikedSongs, incrementPlayCount,
     rootFolderId, scrollPositions
