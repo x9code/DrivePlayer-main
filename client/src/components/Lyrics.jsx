@@ -73,6 +73,10 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
         el.style.setProperty('--am-lyrics-highlight-color', '#ffffff');
         el.style.setProperty('--hover-background-color', 'rgba(255,255,255,0.06)');
         el.style.setProperty('--highlight-color', '#ffffff');
+        
+        // This is the magic variable am-lyrics uses to offset its internal translateY scroll offset
+        // Setting it to 50% forces the active line to the exact vertical center of the screen!
+        el.style.setProperty('--scroll-padding-top', '50%');
 
         // Inject custom styles into shadow DOM once it's ready
         const injectStyles = () => {
@@ -104,10 +108,6 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
                 .lyrics-line.active {
                     opacity: 1 !important;
                     color: #ffffff !important;
-                }
-
-                /* Fix: Prevent gray background box appearing behind active lines */
-                .lyrics-line.active {
                     background: transparent !important;
                     background-color: transparent !important;
                 }
