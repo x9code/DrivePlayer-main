@@ -120,8 +120,8 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
             el.shadowRoot.prepend(style);
         };
 
-        // Check if am-lyrics found anything by looking for .lyrics-line elements
         let notFoundTimeout = null;
+        let explicitNotFoundTimeout = null;
         let foundNoLyricsText = false;
 
         const checkLyricsLoaded = () => {
@@ -134,12 +134,20 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
 
             if (lines.length > 0 && syllables.length > 0) {
                 if (notFoundTimeout) clearTimeout(notFoundTimeout);
+                if (explicitNotFoundTimeout) clearTimeout(explicitNotFoundTimeout);
                 if (onAvailable) onAvailable(true);
             } else if (textContent.includes('no lyrics found') || textContent.includes('not found')) {
                 if (notFoundTimeout) clearTimeout(notFoundTimeout);
-                if (!foundNoLyricsText && onAvailable) {
-                    foundNoLyricsText = true;
-                    onAvailable(false);
+                
+                // Debounce the explicit 'not found' text because am-lyrics flashes it briefly on load
+                if (!foundNoLyricsText && onAvailable && !explicitNotFoundTimeout) {
+                    explicitNotFoundTimeout = setTimeout(() => {
+                        const doubleCheckLines = shadow.querySelectorAll('.lyrics-line');
+                        if (doubleCheckLines.length === 0) {
+                            foundNoLyricsText = true;
+                            onAvailable(false);
+                        }
+                    }, 500); // Wait half a second to ensure it wasn't just a loading flash
                 }
             } else {
                 if (!notFoundTimeout) {
@@ -189,6 +197,8 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
         amElementRef.current = el;
 
         return () => {
+            if (notFoundTimeout) clearTimeout(notFoundTimeout);
+            if (explicitNotFoundTimeout) clearTimeout(explicitNotFoundTimeout);
             observer.disconnect();
             if (amElementRef.current) {
                 amElementRef.current.remove();

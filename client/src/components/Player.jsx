@@ -19,12 +19,20 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const [isLosslessModalOpen, setIsLosslessModalOpen] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
     const [artError, setArtError] = useState(false);
+    const [lyricsPref, setLyricsPref] = useState(() => localStorage.getItem('driveplayer_lyrics_show') === 'true');
     const [showLyrics, setShowLyrics] = useState(() => localStorage.getItem('driveplayer_lyrics_show') === 'true');
     const [showRepeatPicker, setShowRepeatPicker] = useState(false);
 
     useEffect(() => {
-        localStorage.setItem('driveplayer_lyrics_show', showLyrics);
-    }, [showLyrics]);
+        localStorage.setItem('driveplayer_lyrics_show', lyricsPref);
+    }, [lyricsPref]);
+
+    useEffect(() => {
+        // Optimistically open lyrics on track change if user prefers them
+        if (currentSong && lyricsPref) {
+            setShowLyrics(true);
+        }
+    }, [currentSong?.id, lyricsPref]);
 
     const { meta, displayMeta } = useMetadata(currentSong);
 
@@ -125,7 +133,11 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 case 'KeyL':
                     e.preventDefault();
                     if (isExpanded) {
-                        setShowLyrics(prev => !prev);
+                        setLyricsPref(prev => {
+                            const newPref = !prev;
+                            setShowLyrics(newPref);
+                            return newPref;
+                        });
                         setShowInfo(false);
                     }
                     break;
@@ -133,7 +145,6 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     e.preventDefault();
                     if (isExpanded) {
                         setShowInfo(prev => !prev);
-                        setShowLyrics(false);
                     }
                     break;
                 case 'PageDown':
@@ -148,7 +159,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentSong, setIsPlaying, onNext, onPrev, isExpanded]);
+    }, [currentSong, setIsPlaying, onNext, onPrev, isExpanded, lyricsPref]);
 
 
 
@@ -316,8 +327,14 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         <div className={`flex gap-3 ${isExpanded ? 'pointer-events-auto' : ''}`}>
                             {/* Lyrics Toggle */}
                             <button
-                                onClick={(e) => { e.stopPropagation(); setShowLyrics(!showLyrics); setShowInfo(false); }}
-                                className={`glass-button h-10 px-4 rounded-full flex items-center justify-center gap-2 transition-all ${showLyrics ? 'bg-primary/20 text-primary border-primary/30' : 'hover:text-white'}`}
+                                onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    const newPref = !lyricsPref;
+                                    setLyricsPref(newPref);
+                                    setShowLyrics(newPref); 
+                                    setShowInfo(false); 
+                                }}
+                                className={`glass-button h-10 px-4 rounded-full flex items-center justify-center gap-2 transition-all ${lyricsPref ? 'bg-primary/20 text-primary border-primary/30' : 'hover:text-white'}`}
                             >
                                 <IoMusicalNote size={16} />
                                 <span className="text-xs font-bold">Lyrics</span>
@@ -709,7 +726,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 duration={duration}
                                 isExpanded={isExpanded}
                                 onAvailable={(isAvailable) => {
-                                    if (!isAvailable && showLyrics) {
+                                    if (isAvailable && lyricsPref) {
+                                        setShowLyrics(true);
+                                    } else if (!isAvailable) {
                                         setShowLyrics(false);
                                     }
                                 }}

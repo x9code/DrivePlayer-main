@@ -42,89 +42,9 @@ class ArtService {
      * @param {Array} files
      */
     async enrichMissingArt(files) {
-        // Only process audio files
-        const audioFiles = files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
-        if (audioFiles.length === 0) return;
-
-        console.log(`[ArtService] Checking ${audioFiles.length} files for art enrichment...`);
-        let updated = 0;
-        let propagated = 0;
-        let onlineFound = 0;
-
-        // 1. Group by Album (Key: "Artist - Album")
-        const albumGroups = {};
-        const singles = [];
-
-        for (const file of audioFiles) {
-            const hasArtist = !!file.artist && file.artist !== 'Unknown Artist';
-            const hasAlbum = !!file.album && file.album !== 'Unknown Album';
-
-            if (hasArtist && hasAlbum) {
-                const key = `${file.artist} - ${file.album}`.toLowerCase();
-                if (!albumGroups[key]) albumGroups[key] = [];
-                albumGroups[key].push(file);
-            } else {
-                singles.push(file);
-            }
-        }
-
-        // 2. Process Albums
-        for (const [key, group] of Object.entries(albumGroups)) {
-            // Check if ANY file in this group has embedded artwork (from metadata scan)
-            const hasEmbeddedArt = group.some(f => f.artwork === true);
-            if (hasEmbeddedArt) {
-                // Skip iTunes fetch — embedded art is served from local cache
-                continue;
-            }
-
-            // Check if ANY file in this group has artwork (Local URL)
-            const existingArtFile = group.find(f => f.picture && !f.picture.includes('googleusercontent.com'));
-            const lowResArtFile = group.find(f => f.picture || f.thumbnailLink);
-
-            let artUrl = null;
-
-            if (existingArtFile) {
-                artUrl = existingArtFile.picture;
-            } else if (lowResArtFile) {
-                artUrl = lowResArtFile.picture || lowResArtFile.thumbnailLink;
-            }
-
-            // [NEW] If NO local art found, try iTunes for the group
-            if (!artUrl) {
-                const first = group[0];
-                artUrl = await this.fetchAlbumArt(first.artist, first.album, first.title);
-                if (artUrl) onlineFound++;
-            }
-
-            // Apply to ALL missing in group
-            if (artUrl) {
-                for (const file of group) {
-                    if (!file.picture) {
-                        file.picture = artUrl;
-                        await LibraryService.updateField(file.id, 'picture', artUrl);
-                        updated++;
-                        propagated++;
-                    }
-                }
-            }
-        }
-
-        // 3. Process Singles (Unknown Album)
-        for (const file of singles) {
-            // Skip if file has embedded artwork from metadata scan
-            if (file.artwork === true) continue;
-            if (!file.picture) {
-                const artUrl = await this.fetchAlbumArt(file.artist, null, file.title || file.name);
-                if (artUrl) {
-                    file.picture = artUrl;
-                    await LibraryService.updateField(file.id, 'picture', artUrl);
-                    updated++;
-                    onlineFound++;
-                }
-            }
-        }
-
-        console.log(`[ArtService] Batch Complete. Updated: ${updated} (Online Found: ${onlineFound}), Propagated: ${propagated}`);
+        // Disabled by user request: Do not fetch art from iTunes or externally
+        // Ensure the app only uses pre-existing embedded album art.
+        return;
     }
 }
 
