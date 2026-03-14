@@ -68,7 +68,7 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
         el.style.width = '100%';
         el.style.height = '100%';
         el.style.display = 'block';
-        el.style.fontSize = '1.5rem';
+        el.style.fontSize = window.innerWidth < 768 ? '1rem' : '1.5rem';
         el.style.fontWeight = '700';
         el.style.setProperty('--am-lyrics-highlight-color', '#ffffff');
         el.style.setProperty('--hover-background-color', 'rgba(255,255,255,0.06)');
@@ -97,6 +97,12 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
                     --lyplus-font-size-base: 30px !important;
                     --lyplus-blur-amount: 0.05em !important;
                     --lyplus-blur-amount-near: 0.02em !important;
+                }
+
+                @media (max-width: 767px) {
+                    :host {
+                        --lyplus-font-size-base: 20px !important;
+                    }
                 }
 
                 /* Inactive lines: very dim */

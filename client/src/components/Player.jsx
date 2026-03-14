@@ -23,6 +23,15 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const [showLyrics, setShowLyrics] = useState(() => localStorage.getItem('driveplayer_lyrics_show') === 'true');
     const [showRepeatPicker, setShowRepeatPicker] = useState(false);
 
+    // Mobile detection for responsive layout
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+    useEffect(() => {
+        const mql = window.matchMedia('(max-width: 767px)');
+        const handler = (e) => setIsMobile(e.matches);
+        mql.addEventListener('change', handler);
+        return () => mql.removeEventListener('change', handler);
+    }, []);
+
     useEffect(() => {
         localStorage.setItem('driveplayer_lyrics_show', lyricsPref);
     }, [lyricsPref]);
@@ -211,7 +220,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     left-0 right-0 mx-auto
                     ${isExpanded
                         ? 'bottom-0 w-full h-full rounded-none border-none' // Expanded: Fully cover screen (animate up)
-                        : 'bottom-6 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini
+                        : 'md:bottom-6 bottom-20 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini
                     } text-white`}
                 onClick={handlePlayerClick}
                 style={{
@@ -319,7 +328,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] delay-100 p-8 ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-95'}`}>
 
                     {/* Header */}
-                    <div className="absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20 pointer-events-none">
+                    <div className={`absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20 pointer-events-none transition-opacity duration-300 ${isMobile && showLyrics ? 'opacity-0' : ''}`}>
                         <button onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }} className={`glass-button w-10 h-10 rounded-full flex items-center justify-center hover:text-white ${isExpanded ? 'pointer-events-auto' : ''}`}>
                             <IoChevronDown size={24} />
                         </button>
@@ -355,13 +364,13 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
                     {/* Main Content — CSS Grid layout for smooth column animation */}
                     <div
-                        className={`w-full h-full z-10 grid items-stretch transition-[grid-template-columns,opacity,transform] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
+                        className={`w-full h-full z-10 grid items-stretch transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
                         style={{
-                            gridTemplateColumns: showLyrics ? '2fr 3fr' : '1fr 0fr',
-                            gap: showLyrics ? '2rem' : '0px',
-                            maxWidth: showLyrics ? '72rem' : '28rem',
+                            gridTemplateColumns: isMobile ? '1fr' : (showLyrics ? '2fr 3fr' : '1fr 0fr'),
+                            gridTemplateRows: '1fr',
+                            gap: showLyrics && !isMobile ? '2rem' : '0px',
+                            maxWidth: showLyrics && !isMobile ? '72rem' : '28rem',
                             margin: '0 auto',
-                            transition: 'grid-template-columns 0.7s cubic-bezier(0.2,0.8,0.2,1), gap 0.7s cubic-bezier(0.2,0.8,0.2,1), max-width 0.7s cubic-bezier(0.2,0.8,0.2,1), opacity 0.7s cubic-bezier(0.2,0.8,0.2,1), transform 0.7s cubic-bezier(0.2,0.8,0.2,1)',
                         }}
                     >
 
@@ -371,7 +380,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             {/* Artwork + Info Card Container */}
                             <div className="relative flex items-center justify-center [perspective:1500px]">
                                 {/* 3D Flip Container */}
-                                <div className={`relative group transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] [transform-style:preserve-3d] ${showLyrics ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'} ${showInfo ? '[transform:rotateY(180deg)]' : ''}`}>
+                                <div className={`relative group transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] [transform-style:preserve-3d] ${showLyrics && !isMobile ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'} ${showInfo ? '[transform:rotateY(180deg)]' : ''}`}>
 
                                     {/* FRONT FACE: Album Art */}
                                     <div className={`absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate [backface-visibility:hidden] ${showInfo ? 'pointer-events-none' : ''}`}>
@@ -497,11 +506,11 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             </div>
 
                             {/* Text */}
-                            <div className={`text-center space-y-1 transition-all duration-700 ${showLyrics ? 'max-w-[280px]' : ''}`}>
+                            <div className={`text-center space-y-1 transition-all duration-700 ${showLyrics && !isMobile ? 'max-w-[280px]' : ''}`}>
                                 <div className="flex items-center justify-center gap-3">
-                                    <h2 className={`font-bold text-white truncate transition-all duration-700 ${showLyrics ? 'text-xl max-w-[250px]' : 'text-3xl max-w-xs'}`}>{displayMeta.title}</h2>
+                                    <h2 className={`font-bold text-white truncate transition-all duration-700 ${showLyrics && !isMobile ? 'text-xl max-w-[250px]' : 'text-3xl max-w-xs'}`}>{displayMeta.title}</h2>
                                 </div>
-                                <p className={`text-zinc-400 font-medium transition-all duration-700 ${showLyrics ? 'text-sm' : 'text-lg'}`}>
+                                <p className={`text-zinc-400 font-medium transition-all duration-700 ${showLyrics && !isMobile ? 'text-sm' : 'text-lg'}`}>
                                     {(() => {
                                         const artist = displayMeta.artist || '';
                                         const parts = artist.split(/[;,]\s*/);
@@ -714,27 +723,126 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             </div>
                         </div>
 
-                        {/* RIGHT COLUMN: Lyrics Panel — always rendered to pre-fetch, animated via opacity+transform */}
-                        <div
-                            className={`h-full min-h-0 rounded-2xl overflow-hidden transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-[opacity,transform] ${showLyrics ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'}`}
-                            style={{ contain: 'layout style' }}
-                        >
-                            <Lyrics
-                                audioRef={audioRef}
-                                artist={displayMeta.artist}
-                                title={displayMeta.title}
-                                duration={duration}
-                                isExpanded={isExpanded}
-                                onAvailable={(isAvailable) => {
-                                    if (isAvailable && lyricsPref) {
-                                        setShowLyrics(true);
-                                    } else if (!isAvailable) {
-                                        setShowLyrics(false);
-                                    }
-                                }}
-                            />
-                        </div>
+                        {/* RIGHT COLUMN: Lyrics Panel — desktop only (hidden on mobile, mobile uses overlay below) */}
+                        {!isMobile && (
+                            <div
+                                className={`h-full min-h-0 rounded-2xl overflow-hidden transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-[opacity,transform] ${showLyrics ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'}`}
+                                style={{ contain: 'layout style' }}
+                            >
+                                <Lyrics
+                                    audioRef={audioRef}
+                                    artist={displayMeta.artist}
+                                    title={displayMeta.title}
+                                    duration={duration}
+                                    isExpanded={isExpanded}
+                                    onAvailable={(isAvailable) => {
+                                        if (isAvailable && lyricsPref) {
+                                            setShowLyrics(true);
+                                        } else if (!isAvailable) {
+                                            setShowLyrics(false);
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
+
+                    {/* ═══════ MOBILE FULL-SCREEN LYRICS OVERLAY (Apple Music Style) ═══════ */}
+                    {isMobile && (
+                        <div
+                            className={`absolute inset-0 z-50 flex flex-col transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showLyrics ? 'opacity-100 translate-y-0' : 'opacity-100 translate-y-full pointer-events-none'}`}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Blurred album art background */}
+                            <div className="absolute inset-0 z-0 overflow-hidden">
+                                {!artError && currentSong && (
+                                    <img
+                                        src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
+                                        alt=""
+                                        className="w-full h-full object-cover blur-3xl scale-125 opacity-30"
+                                    />
+                                )}
+                                <div className="absolute inset-0 bg-black/90" />
+                            </div>
+
+                            {/* Top bar: close button */}
+                            <div className="relative z-10 flex items-center justify-between px-6 pt-12 pb-4">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setShowLyrics(false); setLyricsPref(false); }}
+                                    className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white"
+                                >
+                                    <IoChevronDown size={24} />
+                                </button>
+                                <span className="text-xs font-bold text-primary uppercase tracking-widest">Lyrics</span>
+                                <div className="w-10" /> {/* spacer */}
+                            </div>
+
+                            {/* Lyrics content — takes up all available space */}
+                            <div className="relative z-10 flex-1 min-h-0 overflow-hidden px-4">
+                                <Lyrics
+                                    audioRef={audioRef}
+                                    artist={displayMeta.artist}
+                                    title={displayMeta.title}
+                                    duration={duration}
+                                    isExpanded={isExpanded}
+                                    onAvailable={(isAvailable) => {
+                                        if (isAvailable && lyricsPref) {
+                                            setShowLyrics(true);
+                                        } else if (!isAvailable) {
+                                            setShowLyrics(false);
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            {/* Bottom compact controls */}
+                            <div className="relative z-10 px-6 pb-20 pt-4 space-y-3">
+                                {/* Song info */}
+                                <div className="text-center">
+                                    <h3 className="text-base font-bold text-white truncate">{displayMeta.title}</h3>
+                                    <p className="text-sm text-zinc-400 truncate">{displayMeta.artist}</p>
+                                </div>
+
+                                {/* Progress bar */}
+                                <div className="w-full space-y-1">
+                                    <div className="w-full h-1 bg-white/20 rounded-full relative overflow-hidden">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max={duration || 0}
+                                            value={progress || 0}
+                                            onChange={handleSeek}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                        />
+                                        <div
+                                            className="h-full bg-primary rounded-full"
+                                            style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }}
+                                        />
+                                    </div>
+                                    <div className="flex justify-between text-[10px] font-mono text-zinc-500">
+                                        <span>{formatTime(progress)}</span>
+                                        <span>{formatTime(duration)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Playback controls */}
+                                <div className="flex items-center justify-center gap-8">
+                                    <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="text-white">
+                                        <IoPlaySkipBack size={24} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); togglePlay(e); }}
+                                        className="bg-primary text-black rounded-full w-14 h-14 flex items-center justify-center shadow-lg shadow-primary/30"
+                                    >
+                                        {isPlaying ? <IoPause size={24} /> : <IoPlay size={26} className="pl-0.5" />}
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); onNext(false); }} className="text-white">
+                                        <IoPlaySkipForward size={24} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Audio Element */}

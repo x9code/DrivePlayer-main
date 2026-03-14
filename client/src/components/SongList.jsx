@@ -351,6 +351,78 @@ const FolderRow = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, 
     );
 });
 
+// Mobile three-dot action menu for song rows
+const MobileActionMenu = ({ file, isLiked, toggleLike, onAddPlaylist }) => {
+    const [open, setOpen] = useState(false);
+    const menuId = React.useRef(Math.random().toString(36)).current;
+
+    // Close this menu when another one opens
+    React.useEffect(() => {
+        const handler = (e) => { if (e.detail !== menuId) setOpen(false); };
+        window.addEventListener('close-song-menus', handler);
+        return () => window.removeEventListener('close-song-menus', handler);
+    }, [menuId]);
+
+    const handleOpen = (e) => {
+        e.stopPropagation();
+        // Close all other menus first
+        window.dispatchEvent(new CustomEvent('close-song-menus', { detail: menuId }));
+        setOpen(!open);
+    };
+
+    return (
+        <div className="relative md:hidden">
+            <button
+                onClick={handleOpen}
+                className="p-2 text-zinc-400 hover:text-white transition-colors"
+            >
+                <IoEllipsisVertical size={20} />
+            </button>
+
+            {open && (
+                <>
+                    {/* Backdrop */}
+                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+
+                    {/* Popup */}
+                    <div
+                        className="absolute right-0 bottom-full mb-2 z-50 w-48 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-150"
+                        style={{
+                            background: 'rgba(30,30,30,0.95)',
+                            backdropFilter: 'blur(20px)',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => { window.open(`${API_BASE}/api/download/${file.id}`, '_blank'); setOpen(false); }}
+                            className="w-full text-left px-4 py-3 text-sm text-zinc-200 hover:bg-white/10 flex items-center gap-3 transition-colors"
+                        >
+                            <IoCloudDownloadOutline size={18} className="text-primary" />
+                            <span>Download</span>
+                        </button>
+                        <button
+                            onClick={() => { onAddPlaylist(file); setOpen(false); }}
+                            className="w-full text-left px-4 py-3 text-sm text-zinc-200 hover:bg-white/10 flex items-center gap-3 transition-colors border-t border-white/5"
+                        >
+                            <IoAddCircleOutline size={18} className="text-primary" />
+                            <span>Add to Playlist</span>
+                        </button>
+                        <button
+                            onClick={() => { toggleLike(file); setOpen(false); }}
+                            className="w-full text-left px-4 py-3 text-sm text-zinc-200 hover:bg-white/10 flex items-center gap-3 transition-colors border-t border-white/5"
+                        >
+                            {isLiked
+                                ? <><IoHeart size={18} className="text-primary" /><span>Remove from Liked</span></>
+                                : <><IoHeartOutline size={18} className="text-primary" /><span>Add to Liked</span></>
+                            }
+                        </button>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
 const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLiked, toggleLike, onAddPlaylist, playCount }) => {
     return (
         <div
@@ -388,30 +460,26 @@ const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLike
             </div>
 
             {/* Size/Duration/Actions Column */}
-            <div className="text-xs font-medium text-zinc-500 group-hover:text-zinc-400 text-right font-variant-numeric tabular-nums flex items-center justify-end gap-3">
+            <div className="text-xs font-medium text-zinc-500 group-hover:text-zinc-400 text-right font-variant-numeric tabular-nums flex items-center justify-end gap-1 md:gap-3">
 
-                {/* Download Button */}
+                {/* Desktop: individual buttons (hidden on mobile) */}
                 <button
                     onClick={(e) => { e.stopPropagation(); window.open(`${API_BASE}/api/download/${file.id}`, '_blank'); }}
-                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 focus:outline-none text-zinc-500 hover:text-white"
+                    className="hidden md:block opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 focus:outline-none text-zinc-500 hover:text-white"
                     title="Download"
                 >
                     <IoCloudDownloadOutline size={18} />
                 </button>
-
-                {/* Add to Playlist Button */}
                 <button
                     onClick={(e) => { e.stopPropagation(); onAddPlaylist(file); }}
-                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 focus:outline-none text-zinc-500 hover:text-white"
+                    className="hidden md:block opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 focus:outline-none text-zinc-500 hover:text-white"
                     title="Add to Playlist"
                 >
                     <IoAddCircleOutline size={20} />
                 </button>
-
-                {/* Like Button */}
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleLike(file); }}
-                    className={`transition-all duration-200 hover:scale-110 focus:outline-none
+                    className={`hidden md:block transition-all duration-200 hover:scale-110 focus:outline-none
                         ${isLiked
                             ? 'opacity-100 text-primary'
                             : 'opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-white'}
@@ -421,10 +489,13 @@ const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLike
                     {isLiked ? <IoHeart size={16} /> : <IoHeartOutline size={16} />}
                 </button>
 
+                {/* Mobile: three-dot menu (hidden on desktop) */}
+                <MobileActionMenu file={file} isLiked={isLiked} toggleLike={toggleLike} onAddPlaylist={onAddPlaylist} />
+
                 {playCount !== undefined && (
-                    <span className="text-[11px] text-zinc-400 font-bold min-w-[50px] text-right whitespace-nowrap">{playCount} plays</span>
+                    <span className="hidden md:inline text-[11px] text-zinc-400 font-bold min-w-[50px] text-right whitespace-nowrap">{playCount} plays</span>
                 )}
-                <span className="min-w-[60px] whitespace-nowrap text-right text-zinc-500">{formatSize(file.size)}</span>
+                <span className="hidden md:inline min-w-[60px] whitespace-nowrap text-right text-zinc-500">{formatSize(file.size)}</span>
             </div>
         </div>
     );

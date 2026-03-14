@@ -6,6 +6,7 @@ import SongList from './components/SongList'
 import Sidebar from './components/Sidebar' // [NEW]
 import ConfirmModal from './components/ConfirmModal'
 import HorizontalFolderNavigation from './components/HorizontalFolderNavigation'
+import MobileNav from './components/MobileNav' // [NEW]
 import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline } from 'react-icons/io5'
 
 // Lazy-loaded: only downloaded when needed (reduces initial bundle)
@@ -81,6 +82,7 @@ function AppContent() {
 
   // Mobile Detection
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [mobileActiveTab, setMobileActiveTab] = useState('root');
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -355,8 +357,9 @@ function AppContent() {
   };
 
   const handleBack = () => {
-    if (isSearching) {
+    if (isSearching || mobileActiveTab === 'search') {
       clearSearch();
+      setMobileActiveTab('root');
       return;
     }
     // Save current scroll before going back
@@ -624,6 +627,30 @@ function AppContent() {
 
   const headerLeft = !isMobile ? (isSidebarCollapsed ? sidebarCollapsedWidth : sidebarExpandedWidth) : 0;
 
+  const handleMobileNav = (tab) => {
+      setMobileActiveTab(tab);
+      if (tab === 'root') {
+          handleGoHome();
+      } else if (tab === 'search') {
+          // Focus search, keep current view until they type
+          if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+      } else if (tab === 'favorites') {
+          handleSidebarNavigate('favorites');
+      } else if (tab === 'profile') {
+          handleSidebarNavigate('profile');
+      }
+  };
+
+  // Determine what the user is currently looking at to highlight the correct mobile tab
+  useEffect(() => {
+      if (isMobile) {
+          if (isSearching) setMobileActiveTab('search');
+          else if (currentFolderId === 'favorites') setMobileActiveTab('favorites');
+          else if (currentFolderId === 'profile') setMobileActiveTab('profile');
+          else if (!isSearching && currentFolderId !== 'favorites' && currentFolderId !== 'profile' && mobileActiveTab !== 'search') setMobileActiveTab('root');
+      }
+  }, [currentFolderId, isSearching, isMobile]);
+
   return (
     <div className="min-h-screen bg-transparent text-white selection:bg-primary selection:text-black relative z-0">
       {/* Base Background Layer (Always Black) */}
@@ -667,22 +694,25 @@ function AppContent() {
         style={{ left: `${headerLeft}px` }}
       >
         <div className="flex items-center gap-3 min-w-0 mr-4">
-          {((currentFolderId && currentFolderId !== rootFolderId.current) || isSearching) && (
+          {((currentFolderId && currentFolderId !== rootFolderId.current) || isSearching || mobileActiveTab === 'search') && (
             <button onClick={handleBack} className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-white hover:scale-105 shrink-0" title="Go Back">
               <IoArrowBack size={20} />
             </button>
           )}
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight hidden md:block truncate drop-shadow-sm">{currentFolderName || 'DrivePlayer'}</h1>
-          </div>
+          {(!isMobile || mobileActiveTab !== 'search') && (
+            <div className="flex items-center gap-3 min-w-0">
+              <h1 className="text-xl font-semibold tracking-tight md:block truncate drop-shadow-sm">{currentFolderName || 'DrivePlayer'}</h1>
+            </div>
+          )}
         </div>
 
-        {/* Search Bar - VisionOS Style */}
-        <div className="relative w-full max-w-sm mx-4 hidden md:block">
+        {/* Search Bar - Centered on Mobile if Active Tab is Search */}
+        <div className={`relative w-full max-w-sm mx-4 ${isMobile && mobileActiveTab === 'search' ? 'block flex-1' : 'hidden md:block'}`}>
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <IoSearchOutline className="text-white/40 text-lg" />
           </div>
           <input
+            autoFocus={isMobile && mobileActiveTab === 'search'}
             type="text"
             className="block w-full pl-10 pr-10 py-2.5 rounded-full leading-5 bg-white/5 border border-white/10 text-gray-200 placeholder-white/30 focus:outline-none focus:bg-white/10 focus:ring-1 focus:ring-white/20 transition-all backdrop-blur-md shadow-lg"
             placeholder="Search..."
@@ -817,41 +847,14 @@ function AppContent() {
               </button>
             )}
 
-          {/* Library Button - Mobile Only */}
-          {isMobile && (
+          {/* Settings Button - Only on Desktop, moved to profile on Mobile */}
+          {!isMobile && (
             <button
-              onClick={() => setShowLibrary(true)}
+              onClick={() => setShowSettings(true)}
               className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:scale-105"
-              title="Your Library"
+              title="Settings"
             >
-              <IoLibrary className="text-xl" />
-            </button>
-          )}
-
-          {/* Settings Button */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:scale-105"
-            title="Settings"
-          >
-            <IoSettingsOutline className="text-xl" />
-          </button>
-
-
-
-          {isMobile && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setIsSearching(false);
-                setCurrentFolderId('favorites');
-                setFiles(likedSongs);
-                window.history.pushState({ folderId: 'favorites' }, '', '?folder=favorites');
-              }}
-              className={`glass-button w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 ${currentFolderId === 'favorites' ? 'text-primary bg-primary/10 border-primary/50' : 'text-zinc-300 hover:text-white'}`}
-              title="Favorites"
-            >
-              {currentFolderId === 'favorites' ? <IoHeart className="text-xl" /> : <IoHeartOutline className="text-xl" />}
+              <IoSettingsOutline className="text-xl" />
             </button>
           )}
         </div>
@@ -861,7 +864,7 @@ function AppContent() {
 
 
       {/* Main Content - Fixed Layout for Glass Effect */}
-      <main ref={mainScrollRef} className={`fixed inset-0 pt-20 overflow-y-auto custom-scrollbar pb-32 z-0 transition-all duration-300 ${!isMobile ? (isSidebarCollapsed ? 'pl-20' : 'pl-64') : ''}`}>
+      <main ref={mainScrollRef} className={`fixed inset-0 pt-20 overflow-y-auto custom-scrollbar md:pb-32 pb-48 z-0 transition-all duration-300 ${!isMobile ? (isSidebarCollapsed ? 'pl-20' : 'pl-64') : ''}`}>
 
         {currentFolderId === 'profile' ? (
           <Suspense fallback={<div className="h-full flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/10 border-t-primary rounded-full animate-spin" /></div>}>
@@ -994,6 +997,7 @@ function AppContent() {
         onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
       />
 
+      {isMobile && <MobileNav activeTab={mobileActiveTab} onNavigate={handleMobileNav} />}
 
       <Analytics />
     </div>
