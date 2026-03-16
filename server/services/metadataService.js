@@ -360,6 +360,9 @@ class MetadataService {
     async enrichFiles(files, force = false) {
         console.log(`[Metadata] Starting enrichment for ${files.length} files... (Force: ${force})`);
 
+        // [FIX] Update folder covers immediately so UI can display fallbacks during the long scan
+        this.updateFolderCovers(files);
+
         // Filter out folders first
         const songs = files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
 
