@@ -7,17 +7,13 @@ const path = require('path');
 const archiver = require('archiver');
 const axios = require('axios');
 
-// Import new services
-// Import new services
-
 const CacheService = require('./services/cacheService');
 const DriveService = require('./services/driveService');
 const MetadataService = require('./services/metadataService');
-const LocalLibraryService = require('./services/libraryService'); // Rename to avoid conflict if any
+const LocalLibraryService = require('./services/libraryService'); 
 const SyncService = require('./services/syncService');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { Resend } = require('resend');
 const crypto = require('crypto');
 
 // Secret for JWT (In production, use .env)
@@ -860,13 +856,30 @@ app.put('/api/user/profile', authenticateToken, async (req, res) => {
     const trimmedUsername = username.trim();
 
     try {
-        const { rows } = await db.query("SELECT id FROM users WHERE username = $1 AND id != $2", [trimmedUsername, req.user.id]);
+        const { rows } = await db.query("SELECT username FROM users WHERE username = $1 AND username != $2", [trimmedUsername, req.user.username]);
         if (rows.length > 0) return res.status(409).json({ error: "Username already taken" });
 
-        await db.query("UPDATE users SET username = $1 WHERE id = $2", [trimmedUsername, req.user.id]);
+        await db.query("UPDATE users SET username = $1 WHERE username = $2", [trimmedUsername, req.user.username]);
         res.json({ success: true, username: trimmedUsername });
     } catch (err) {
         return res.status(500).json({ error: "Database error" });
+    }
+});
+
+// [NEW] Delete Account (No verification required as per user's request)
+app.delete('/api/auth/account', authenticateToken, async (req, res) => {
+    try {
+        const username = req.user.username;
+        console.log(`[Auth] Deleting account for: ${username}`);
+
+        // Note: Other tables (favorites, play_counts, etc.) use username as a key 
+        // and should ideally have ON DELETE CASCADE or be cleaned up here.
+        await db.query("DELETE FROM users WHERE username = $1", [username]);
+
+        res.json({ success: true, message: "Account deleted permanently" });
+    } catch (err) {
+        console.error("[Auth] Deletion Error:", err);
+        res.status(500).json({ error: "Failed to delete account" });
     }
 });
 // ----------------------------
@@ -1195,70 +1208,6 @@ app.get('/api/download/album', async (req, res) => {
     } catch (error) {
         console.error('[Download] Album ZIP error:', error.message);
         if (!res.headersSent) res.status(500).json({ error: 'Download failed' });
-    }
-});
-
-// --- Telegram OTP System ---
-const TelegramBot = require('node-telegram-bot-api');
-let bot = null;
-
-// Initialize Bot if credentials exist
-if (process.env.TELEGRAM_BOT_TOKEN) {
-    bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: false });
-    // Polling false because we only send messages, we don't need to read them
-    console.log('Telegram Bot Initialized');
-} else {
-    console.log('Telegram Bot Token Missing - OTPs will fail or fallback to console');
-}
-
-let currentOtp = null;
-let otpExpires = 0;
-
-app.post('/api/auth/otp/send', async (req, res) => {
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    currentOtp = otp;
-    otpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
-
-    const message = `🔐 *DrivePlayer Verification*\n\nYour code is: \`${otp}\`\n\nValid for 5 minutes.`;
-
-    try {
-        if (bot && process.env.TELEGRAM_CHAT_ID) {
-            await bot.sendMessage(process.env.TELEGRAM_CHAT_ID, message, { parse_mode: 'Markdown' });
-            console.log(`[Telegram] OTP Sent to ${process.env.TELEGRAM_CHAT_ID}`);
-            res.json({ success: true, message: 'OTP Sent to Telegram' });
-        } else {
-            // Fallback for debugging if env missing
-            console.log('\n=============================');
-            console.log(`[MOCK SMS] To: Telegram User`);
-            console.log(`[MOCK SMS] Message: Your Code is: ${otp}`);
-            console.log('=============================\n');
-            res.json({ success: true, message: 'OTP Generated (Check Console)' });
-        }
-    } catch (error) {
-        console.error('Telegram Error:', error.message);
-        res.status(500).json({ error: 'Failed to send Telegram message' });
-    }
-});
-
-app.post('/api/auth/otp/verify', (req, res) => {
-    const { otp } = req.body;
-
-
-
-    if (!otp) return res.status(400).json({ error: 'OTP required' });
-
-    if (!currentOtp || Date.now() > otpExpires) {
-        return res.json({ valid: false, message: 'OTP Expired' });
-    }
-
-    // Ensure strict string comparison
-    if (String(otp).trim() === String(currentOtp).trim()) {
-        // Clear OTP after successful use to prevent replay (optional, but good practice)
-        currentOtp = null;
-        res.json({ valid: true });
-    } else {
-        res.json({ valid: false, message: 'Invalid OTP' });
     }
 });
 

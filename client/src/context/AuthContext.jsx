@@ -108,10 +108,23 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
-
         localStorage.removeItem('driveplayer_token');
         setToken(null);
         setUser(null);
+    };
+
+    const deleteAccount = async () => {
+        try {
+            const res = await axios.delete(`${API_BASE}/api/auth/account`);
+            if (res.data.success) {
+                logout();
+                return { success: true };
+            }
+            return { success: false, error: "Failed to delete account" };
+        } catch (err) {
+            console.error("Delete Account Error:", err);
+            return { success: false, error: err.response?.data?.error || "Failed to delete account" };
+        }
     };
 
     const updateUser = (data) => {
@@ -125,6 +138,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
+        deleteAccount,
         updateUser,
         isAuthenticated: !!user
     };

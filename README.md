@@ -17,10 +17,9 @@ Built with **React (Vite)** and **Node.js**, DrivePlayer offers a premium listen
 - **Customizable Themes**: Choose your preferred app color (defaults to elegant Dark Lavender).
 - **Responsive Layout**: Fully optimized for mobile with a dedicated bottom navigation and gesture-friendly UI.
 
-### 🔐 Advanced Security & Auth
-- **Username-Based Auth**: Secure registration and login without requiring emails.
-- **Telegram OTP**: Two-factor verification integrated via a private Telegram Bot.
-- **Account Management**: Update your username, upload a custom avatar, or permanently delete your account.
+### 🔐 Secure Authentication
+- **Username-Based Auth**: Secure registration and login without requiring emails or phone numbers.
+- **Account Management**: Update your username, upload a custom avatar, or permanently delete your account directly from the profile.
 
 ### 📁 Smart Library Management
 - **PostgreSQL Backend**: Persistent storage for favorites, playlists, and playback statistics.
@@ -37,7 +36,6 @@ Built with **React (Vite)** and **Node.js**, DrivePlayer offers a premium listen
 - **Node.js**: v18 or higher.
 - **PostgreSQL**: A running instance for data persistence.
 - **Google Cloud**: A project with **Google Drive API** enabled and a Service Account.
-- **Telegram Bot** (Optional): For OTP verification features.
 
 ### Installation
 
@@ -58,8 +56,6 @@ Built with **React (Vite)** and **Node.js**, DrivePlayer offers a premium listen
    DATABASE_URL=postgres://user:password@localhost:5432/driveplayer
    JWT_SECRET=your_secret_key
    GOOGLE_APPLICATION_CREDENTIALS=./service-account.json
-   TELEGRAM_BOT_TOKEN=your_bot_token
-   TELEGRAM_CHAT_ID=your_chat_id
    ```
 
 3. **Client Setup**
@@ -92,7 +88,6 @@ Built with **React (Vite)** and **Node.js**, DrivePlayer offers a premium listen
 - **Node.js & Express**: Extensible API server.
 - **PostgreSQL**: Reliable relational database via `pg` pool.
 - **Music-Metadata**: Deep analysis of audio bit-depth, sample rates, and codecs.
-- **node-telegram-bot-api**: Integration for secure OTP delivery.
 - **Archiver**: Server-side ZIP generation for folder downloads.
 
 ---
