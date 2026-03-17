@@ -7,7 +7,7 @@ import Sidebar from './components/Sidebar' // [NEW]
 import ConfirmModal from './components/ConfirmModal'
 import HorizontalFolderNavigation from './components/HorizontalFolderNavigation'
 import MobileNav from './components/MobileNav' // [NEW]
-import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline } from 'react-icons/io5'
+import { IoSearchOutline, IoCloseOutline, IoHeart, IoHeartOutline, IoSettingsOutline, IoArrowBack, IoFilterOutline, IoChevronDown, IoChevronUp, IoPlay, IoLibrary, IoCloudDownloadOutline, IoGridOutline, IoListOutline, IoShuffle } from 'react-icons/io5'
 
 // Lazy-loaded: only downloaded when needed (reduces initial bundle)
 const Player = lazy(() => import('./components/Player'));
@@ -436,7 +436,8 @@ function AppContent() {
     if (songList.length > 0) {
       setQueue(songList);
       const randomIndex = Math.floor(Math.random() * songList.length);
-      setCurrentSong(songList[randomIndex]);
+      const randomSong = songList[randomIndex];
+      setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
       setIsPlaying(true);
       setIsShuffle(true);
       return;
@@ -494,7 +495,8 @@ function AppContent() {
       if (activeList.length > 1 && activeList[randomIndex].id === currentSong.id) {
         randomIndex = (randomIndex + 1) % activeList.length;
       }
-      setCurrentSong(activeList[randomIndex]);
+      const randomSong = activeList[randomIndex];
+      setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
       setIsPlaying(true);
       return;
     }
@@ -515,8 +517,9 @@ function AppContent() {
     if (activeList.length === 0) return;
 
     if (isShuffle) {
-      let randomIndex = Math.floor(Math.random() * activeList.length);
-      setCurrentSong(activeList[randomIndex]);
+      const randomIndex = Math.floor(Math.random() * activeList.length);
+      const randomSong = activeList[randomIndex];
+      setCurrentSong({ ...randomSong, title: randomSong.title || cleanTitleCallback(randomSong.name) });
       setIsPlaying(true);
       return;
     }
@@ -831,7 +834,7 @@ function AppContent() {
             className="glass-button w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:scale-105"
             title="Shuffle Play"
           >
-            <IoPlay size={20} className="pl-0.5" />
+            <IoShuffle size={20} />
           </button>
 
           {/* Download Folder Button - Only show when inside a real Drive folder */}
