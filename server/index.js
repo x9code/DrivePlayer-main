@@ -71,6 +71,10 @@ let driveService = null;
 let cacheService = null;
 let metadataService = null;
 
+// [Fix 4] Global Caches for Performance
+let cachedRootFolderId = null;
+const folderNameCache = new Map();
+
 const os = require('os');
 const CACHE_DIR = path.join(os.tmpdir(), 'driveplayer-cache');
 
@@ -311,20 +315,34 @@ app.get('/api/files', async (req, res) => {
 
     try {
         if (!targetFolderId) {
-            const folderRes = await driveClient.files.list({
-                q: "name = 'music' and mimeType = 'application/vnd.google-apps.folder'",
-                fields: 'files(id, name)',
-            });
-            if (!folderRes.data.files.length) return res.status(404).json({ error: 'Music folder not found' });
-            targetFolderId = folderRes.data.files[0].id;
+            // [Fix 4] Cache root 'music' folder ID
+            if (cachedRootFolderId) {
+                targetFolderId = cachedRootFolderId;
+            } else {
+                console.log(`[API] Fetching root 'music' folder ID from Drive`);
+                const folderRes = await driveClient.files.list({
+                    q: "name = 'music' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+                    fields: 'files(id, name)',
+                    pageSize: 1
+                });
+                if (!folderRes.data.files.length) return res.status(404).json({ error: 'Music folder not found' });
+                targetFolderId = folderRes.data.files[0].id;
+                cachedRootFolderId = targetFolderId;
+                folderNameCache.set(targetFolderId, folderRes.data.files[0].name);
+            }
         }
 
-        // Get Folder Name
-        const folderMeta = await driveClient.files.get({
-            fileId: targetFolderId,
-            fields: 'name'
-        });
-        const folderName = folderMeta.data.name;
+        // [Fix 4] Get Folder Name from cache or Drive
+        let folderName = folderNameCache.get(targetFolderId);
+        if (!folderName) {
+            console.log(`[API] Fetching folder name for ${targetFolderId} from Drive`);
+            const folderMeta = await driveClient.files.get({
+                fileId: targetFolderId,
+                fields: 'name'
+            });
+            folderName = folderMeta.data.name;
+            folderNameCache.set(targetFolderId, folderName);
+        }
 
         console.log(`Browsing folder: ${folderName} (${targetFolderId})`);
 
@@ -556,16 +574,13 @@ app.get('/api/search', async (req, res) => {
     if (!query) return res.json([]);
 
     try {
-        console.log(`Searching for: ${query}`);
-        const filesRes = await driveClient.files.list({
-            q: `name contains '${query}' and (mimeType = 'application/vnd.google-apps.folder' or mimeType contains 'audio/' or fileExtension = 'mp3' or fileExtension = 'm4a' or fileExtension = 'opus' or fileExtension = 'flac') and trashed = false`,
-            fields: 'files(id, name, mimeType, size, thumbnailLink, createdTime)',
-            pageSize: 50
-        });
+        console.log(`[Search] Query: ${query}`);
+        
+        // [Fix 3] Search local DB instead of live Drive API
+        let files = await LocalLibraryService.search(query);
+        
+        console.log(`[Search] Found ${files.length} results in DB`);
 
-
-
-        let files = filesRes.data.files || [];
         if (metadataService) {
             files = metadataService.enrichList(files);
         }
@@ -923,7 +938,27 @@ app.get('/api/thumbnail/:fileId', async (req, res) => {
     }
 });
 
-// API: Stream Song
+// API: Get Direct Stream URL (Bypasses server proxy — browser streams straight from Google CDN)
+app.get('/api/stream-url/:fileId', async (req, res) => {
+    if (!driveClient) return res.status(500).json({ error: 'Drive not authenticated' });
+    const fileId = req.params.fileId;
+    try {
+        // Get a short-lived OAuth2 access token from the service account
+        const authClient = await driveClient.auth.getClient();
+        const { token } = await authClient.getAccessToken();
+        if (!token) return res.status(500).json({ error: 'Failed to get access token' });
+
+        // Build the direct download URL — browser streams this without hitting our server
+        const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${token}`;
+        console.log(`[StreamURL] Generated direct URL for ${fileId}`);
+        res.json({ url });
+    } catch (err) {
+        console.error('[StreamURL] Error generating URL:', err.message);
+        res.status(500).json({ error: 'Failed to generate stream URL' });
+    }
+});
+
+// API: Stream Song (Fallback proxy — used if direct URL fails)
 app.get('/api/stream/:fileId', async (req, res) => {
     if (!driveClient) return res.status(500).json({ error: 'Drive not authenticated' });
 
@@ -935,21 +970,33 @@ app.get('/api/stream/:fileId', async (req, res) => {
     try {
         let fileSize, mimeType;
 
-        // Get file metadata from Drive
-        // Use driveService if available, otherwise direct API call
-        if (driveService) {
-            console.log(`[Stream] Using driveService to fetch metadata`);
-            const fileInfo = await driveService.getFileMetadata(fileId);
-            fileSize = fileInfo.size;
-            mimeType = fileInfo.mimeType;
-        } else {
-            console.log(`[Stream] Fetching metadata directly from Drive API`);
-            const fileMetadata = await driveClient.files.get({
-                fileId: fileId,
-                fields: 'size, mimeType'
-            });
-            fileSize = parseInt(fileMetadata.data.size);
-            mimeType = fileMetadata.data.mimeType;
+        // [Fix 2] Check local DB first — avoids a 300-600ms Drive API round-trip on every stream start
+        try {
+            const dbFile = await LocalLibraryService.getFile(fileId);
+            if (dbFile && dbFile.size && dbFile.mimeType) {
+                fileSize = parseInt(dbFile.size);
+                mimeType = dbFile.mimeType;
+                console.log(`[Stream] Metadata from DB (fast): Size=${fileSize}, Type=${mimeType}`);
+            }
+        } catch (dbErr) {
+            console.warn(`[Stream] DB lookup failed for ${fileId}, falling back to Drive API:`, dbErr.message);
+        }
+
+        // Fallback: fetch from Drive API if DB had no size/mimeType
+        if (!fileSize || !mimeType) {
+            if (driveService) {
+                console.log(`[Stream] DB miss — fetching metadata from Drive API`);
+                const fileInfo = await driveService.getFileMetadata(fileId);
+                fileSize = fileInfo.size;
+                mimeType = fileInfo.mimeType;
+            } else {
+                const fileMetadata = await driveClient.files.get({
+                    fileId: fileId,
+                    fields: 'size, mimeType'
+                });
+                fileSize = parseInt(fileMetadata.data.size);
+                mimeType = fileMetadata.data.mimeType;
+            }
         }
 
         console.log(`[Stream] File metadata: Size=${fileSize}, Type=${mimeType}`);

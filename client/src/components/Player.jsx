@@ -19,6 +19,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     const [isLosslessModalOpen, setIsLosslessModalOpen] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
     const [artError, setArtError] = useState(false);
+    const [streamUrl, setStreamUrl] = useState(null);
     const [lyricsPref, setLyricsPref] = useState(() => localStorage.getItem('driveplayer_lyrics_show') === 'true');
     const [showLyrics, setShowLyrics] = useState(() => localStorage.getItem('driveplayer_lyrics_show') === 'true');
     const [showRepeatPicker, setShowRepeatPicker] = useState(false);
@@ -57,6 +58,26 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
     useEffect(() => {
         if (currentSong) setArtError(false);
+    }, [currentSong?.id]);
+
+    // Fetch a direct Drive stream URL to avoid proxying audio through our server
+    useEffect(() => {
+        if (!currentSong) return;
+        let cancelled = false;
+        setStreamUrl(null); // clear old URL immediately so audio resets
+        (async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/stream-url/${currentSong.id}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const { url } = await res.json();
+                if (!cancelled) setStreamUrl(url);
+            } catch (err) {
+                console.warn('[Player] Direct URL failed, falling back to proxy:', err.message);
+                // Fallback: use the old server-side streaming proxy
+                if (!cancelled) setStreamUrl(`${API_BASE}/api/stream/${currentSong.id}`);
+            }
+        })();
+        return () => { cancelled = true; };
     }, [currentSong?.id]);
 
     useEffect(() => {
@@ -845,12 +866,12 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     )}
                 </div>
 
-                {/* Audio Element */}
-                {currentSong && (
+                {/* Audio Element — src is set imperatively via streamUrl state */}
+                {currentSong && streamUrl && (
                     <audio
+                        key={currentSong.id}
                         ref={audioRef}
-                        crossOrigin="anonymous"
-                        src={`${API_BASE}/api/stream/${currentSong.id}`}
+                        src={streamUrl}
                         onTimeUpdate={handleTimeUpdate}
                         onEnded={() => {
                             if (audioRef.current) audioRef.current.currentTime = 0;
@@ -862,11 +883,14 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         onError={(e) => {
                             console.error("Audio Playback Error", e);
                             const error = e.target.error;
-                            if (error && error.code === error.MEDIA_ERR_SRC_NOT_SUPPORTED) {
-                                // Likely 403 or Network Error
-                                console.warn("Stream failed, likely rate limit or network.");
+                            // If the direct Drive URL errored (e.g. expired token),
+                            // fall back to the server proxy for the current song
+                            if (streamUrl && !streamUrl.includes('/api/stream/')) {
+                                console.warn('[Player] Direct URL errored, retrying via proxy...');
+                                setStreamUrl(`${API_BASE}/api/stream/${currentSong.id}`);
+                            } else {
+                                setIsPlaying(false);
                             }
-                            setIsPlaying(false);
                         }}
                     />
                 )}

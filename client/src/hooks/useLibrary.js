@@ -16,6 +16,8 @@ export function useLibrary(token) {
     const fileCache = useRef({});
     const scrollPositions = useRef({});
 
+    const CACHE_TTL = 2 * 60 * 1000; // 2 minutes [Fix 5]
+
 
 
     const refreshFavorites = useCallback(async () => {
@@ -60,9 +62,10 @@ export function useLibrary(token) {
     const fetchFiles = useCallback(async (folderId = null) => {
         const cacheKey = folderId || 'root';
 
-        if (fileCache.current[cacheKey]) {
-            setFiles(fileCache.current[cacheKey].files);
-            setCurrentFolderName(fileCache.current[cacheKey].folderName);
+        const cached = fileCache.current[cacheKey];
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+            setFiles(cached.files);
+            setCurrentFolderName(cached.folderName);
             setLoading(false);
             return;
         }
@@ -163,7 +166,11 @@ export function useLibrary(token) {
                 rootFolderId.current = res.data.folderId;
                 setCurrentFolderId(res.data.folderId);
             }
-            fileCache.current[cacheKey] = { files: fetchedFiles, folderName: res.data.folderName || 'Library' };
+            fileCache.current[cacheKey] = { 
+                files: fetchedFiles, 
+                folderName: res.data.folderName || 'Library',
+                timestamp: Date.now() 
+            };
         } catch (error) {
             console.error(error);
         } finally {
