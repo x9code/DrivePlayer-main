@@ -64,7 +64,12 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
     useEffect(() => {
         if (!currentSong) return;
         let cancelled = false;
-        setStreamUrl(null); // clear old URL immediately so audio resets
+        
+        // Reset playback state for the new song
+        setStreamUrl(null); 
+        setProgress(0);
+        setDuration(0);
+
         (async () => {
             try {
                 const res = await fetch(`${API_BASE}/api/stream-url/${currentSong.id}`);
