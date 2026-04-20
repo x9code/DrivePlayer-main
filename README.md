@@ -41,7 +41,7 @@ Built with **React (Vite)** and **Node.js**, DrivePlayer offers a premium listen
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/DrivePlayer.git
+   git clone https://github.com/x9code/DrivePlayer.git
    cd DrivePlayer
    ```
 
@@ -93,7 +93,7 @@ Built with **React (Vite)** and **Node.js**, DrivePlayer offers a premium listen
 ---
 
 ## 📝 Usage Tips
-- **Shortcuts**: `Space` (Play/Pause), `F` (Full Screen), `N/P` (Next/Prev).
+- **Shortcuts**: `Space` (Play/Pause), `F` (Full Screen), `N/P` (Next/Prev), i (Song Info), L (Show Lyrics)
 - **Rescan**: Hit the "Rescan Library" button in settings if you've added new music to Drive.
 - **Quality**: Check the "i" icon on the player to see technical details for Lossless tracks.
 
