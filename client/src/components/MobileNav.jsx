@@ -11,7 +11,7 @@ const MobileNav = ({ activeTab, onNavigate }) => {
     ];
 
     return (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 h-[68px] z-50 glass-surface border-t border-white/5 pb-safe">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 h-[68px] z-50 bg-[#0c0c0c] border-t border-white/5 pb-safe shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
             <div className="flex items-center justify-around h-full px-2">
                 {navItems.map((item) => {
                     const isActive = activeTab === item.id;

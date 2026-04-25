@@ -246,7 +246,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                     left-0 right-0 mx-auto
                     ${isExpanded
                         ? 'bottom-0 w-full h-full rounded-none border-none' // Expanded: Fully cover screen (animate up)
-                        : 'md:bottom-6 bottom-20 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini
+                        : 'md:bottom-6 bottom-20 w-[92vw] md:w-[600px] h-20 rounded-[32px] bg-[#0c0c0c] md:bg-black/40 backdrop-blur-3xl border border-white/10 hover:scale-[1.02] active:scale-[0.98]' // Mini
                     } text-white`}
                 onClick={handlePlayerClick}
                 style={{
@@ -260,18 +260,18 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                 }}
             >
 
-                {/* Liquid Glass Background */}
+                {/* Liquid Glass Background — desktop only (too GPU-heavy for mobile) */}
                 <div className={`absolute inset-0 overflow-hidden pointer-events-none -z-10 bg-black transition-opacity duration-1000 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
-                    {/* 1. Deep Ambient Blur (Liquid Base) */}
-                    {!artError && (
+                    {/* Decorative blur bg: rendered only on desktop */}
+                    {!artError && !isMobile && (
                         <img
                             src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
                             alt=""
                             className="w-full h-full object-cover blur-[120px] opacity-30 saturate-150 animate-pulse-slower transition-transform duration-[20s] ease-in-out scale-150"
                         />
                     )}
-                    {/* 2. Glass Shine Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-black/40 to-black/90 mix-blend-overlay"></div>
+                    {/* Glass Shine Overlay — desktop only */}
+                    {!isMobile && <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-black/40 to-black/90 mix-blend-overlay"></div>}
                 </div>
 
                 {/* --- MINI CONTENT --- */}
@@ -285,14 +285,14 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 <div className="absolute inset-0 bg-zinc-800 flex items-center justify-center">
                                     <IoMusicalNotes className="text-zinc-500 text-2xl animate-pulse" />
                                 </div>
-                                {/* Album Art */}
+                                {/* Album Art — spinning only on desktop */}
                                 {!artError && (
                                     <img
-                                        key={currentSong.id} // Force remount on song change
+                                        key={currentSong.id}
                                         src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
                                         alt="Art"
-                                        className="relative w-full h-full object-cover rounded-full animate-[spin_10s_linear_infinite]"
-                                        style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+                                        className={`relative w-full h-full object-cover rounded-full ${!isMobile ? 'animate-[spin_10s_linear_infinite]' : ''}`}
+                                        style={!isMobile ? { animationPlayState: isPlaying ? 'running' : 'paused' } : undefined}
                                         onError={() => setArtError(true)}
                                     />
                                 )}
@@ -351,7 +351,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
 
 
                 {/* --- EXPANDED CONTENT --- */}
-                <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] delay-100 p-8 ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-95'}`}>
+                <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all ${isMobile ? 'duration-200' : 'duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)] delay-100'} p-8 ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 pointer-events-none scale-95'}`}>
 
                     {/* Header */}
                     <div className={`absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-400 z-20 pointer-events-none transition-opacity duration-300 ${isMobile && showLyrics ? 'opacity-0' : ''}`}>
@@ -404,9 +404,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                         <div className="flex flex-col items-center justify-center gap-6 min-w-0 will-change-transform">
 
                             {/* Artwork + Info Card Container */}
-                            <div className="relative flex items-center justify-center [perspective:1500px]">
-                                {/* 3D Flip Container */}
-                                <div className={`relative group transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] [transform-style:preserve-3d] ${showLyrics && !isMobile ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'} ${showInfo ? '[transform:rotateY(180deg)]' : ''}`}>
+                            <div className="relative flex items-center justify-center" style={!isMobile ? { perspective: '1500px' } : undefined}>
+                                {/* 3D Flip Container — 3D transforms disabled on mobile for GPU savings */}
+                                <div className={`relative group transition-all ${isMobile ? 'duration-200' : 'duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]'} ${!isMobile ? '[transform-style:preserve-3d]' : ''} ${showLyrics && !isMobile ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'} ${!isMobile && showInfo ? '[transform:rotateY(180deg)]' : ''}`}>
 
                                     {/* FRONT FACE: Album Art */}
                                     <div className={`absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate [backface-visibility:hidden] ${showInfo ? 'pointer-events-none' : ''}`}>
@@ -779,16 +779,9 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             className={`absolute inset-0 z-50 flex flex-col transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${showLyrics ? 'opacity-100 translate-y-0' : 'opacity-100 translate-y-full pointer-events-none'}`}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {/* Blurred album art background */}
+                            {/* Lyrics background — solid dark on mobile for performance */}
                             <div className="absolute inset-0 z-0 overflow-hidden">
-                                {!artError && currentSong && (
-                                    <img
-                                        src={`${API_BASE}/api/thumbnail/${currentSong.id}`}
-                                        alt=""
-                                        className="w-full h-full object-cover blur-3xl scale-125 opacity-30"
-                                    />
-                                )}
-                                <div className="absolute inset-0 bg-black/90" />
+                                <div className="absolute inset-0 bg-black/95" />
                             </div>
 
                             {/* Top bar: close button */}

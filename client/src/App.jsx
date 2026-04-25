@@ -660,11 +660,13 @@ function AppContent() {
       <div className="fixed inset-0 bg-darker -z-50" />
 
       {/* Dynamic Background Gradient (Conditional) */}
+      {/* Mobile: single flat gradient (no radial layers, no opacity transition = no composite layer churn) */}
+      {/* Desktop: rich multi-layer radial gradient with smooth fade */}
       <div
-        className={`fixed inset-0 pointer-events-none transition-opacity duration-1000 -z-10 ${gradientEnabled ? 'opacity-100' : 'opacity-0'}`}
+        className={`fixed inset-0 pointer-events-none -z-10 ${!isMobile ? 'transition-opacity duration-1000' : ''} ${gradientEnabled ? 'opacity-100' : 'opacity-0'}`}
         style={{
-          background: window.innerWidth < 768
-            ? `linear-gradient(180deg, rgba(${themeColor}, 0.15) 0%, rgba(5,5,5,1) 100%)`
+          background: isMobile
+            ? `linear-gradient(180deg, rgba(${themeColor}, 0.12) 0%, rgba(5,5,5,1) 50%)`
             : `
             linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 160px),
             radial-gradient(circle at 50% -30%, rgba(${themeColor}, 0.5) 0%, transparent 90%),
