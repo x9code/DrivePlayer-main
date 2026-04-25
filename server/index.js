@@ -169,6 +169,7 @@ app.post('/api/auth/register', async (req, res) => {
             return res.status(500).json({ error: err.message });
         }
     } catch (e) {
+        console.error('[Auth] Register outer error:', e);
         res.status(500).json({ error: "Server error" });
     }
 });
@@ -192,6 +193,7 @@ app.post('/api/auth/login', async (req, res) => {
             res.status(401).json({ error: "Invalid credentials" });
         }
     } catch (e) {
+        console.error('[Auth] Login error:', e);
         res.status(500).json({ error: "Server error" });
     }
 });

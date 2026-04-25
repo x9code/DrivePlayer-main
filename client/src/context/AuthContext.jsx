@@ -42,9 +42,13 @@ export const AuthProvider = ({ children }) => {
                     if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
                         // Server timeout — skip auth silently, app still loads
                         console.warn('Auth check timed out (cold start?). Proceeding without auth.');
+                    } else if (err.response?.status === 401 || err.response?.status === 403) {
+                        // Server explicitly rejected the token — it's invalid or expired
+                        console.warn('Token rejected by server. Logging out.');
+                        logout();
                     } else {
-                        console.error("Auth Init Failed:", err);
-                        logout(); // Invalid token
+                        // Network error, 5xx, or any other transient failure — keep the user signed in
+                        console.warn('Auth check failed (network/server error). Staying signed in.', err.message);
                     }
                 }
             }

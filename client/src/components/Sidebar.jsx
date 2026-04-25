@@ -1,4 +1,4 @@
-import { IoHome, IoHeart, IoMusicalNote, IoAdd, IoTrashOutline, IoLibrary, IoDiscOutline, IoPeopleOutline, IoSyncOutline, IoLogoGoogle, IoStatsChart, IoChevronBack, IoChevronForward, IoPersonCircleOutline } from 'react-icons/io5';
+import { IoHome, IoHeart, IoMusicalNote, IoAdd, IoTrashOutline, IoLibrary, IoDiscOutline, IoPeopleOutline, IoSyncOutline, IoLogoGoogle, IoStatsChart, IoPersonCircleOutline } from 'react-icons/io5';
 import PlaylistCover from './PlaylistCover';
 import axios from 'axios';
 import { useEffect, useState, useRef } from 'react';
@@ -148,20 +148,11 @@ const Sidebar = ({
         >
             {/* Logo area */}
             <div className={`h-20 flex items-center transition-all duration-300 ${effectiveCollapsed ? 'justify-center p-0' : 'px-6'}`}>
-                <button
-                    onClick={() => onToggle()}
-                    className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center backdrop-blur-md border border-white/5 hover:bg-white/10 transition-colors group"
-                    title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                <div
+                    className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center backdrop-blur-md border border-white/5"
                 >
-                    {isCollapsed ? (
-                        <IoLogoGoogle className="text-primary text-xl shrink-0 drop-shadow-[0_0_8px_rgba(var(--theme-color),0.5)]" />
-                    ) : (
-                        <div className="relative w-full h-full flex items-center justify-center">
-                            <IoChevronBack className="text-white text-xl absolute opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <IoLogoGoogle className="text-primary text-xl shrink-0 drop-shadow-[0_0_8px_rgba(var(--theme-color),0.5)] absolute opacity-100 group-hover:opacity-0 transition-opacity" />
-                        </div>
-                    )}
-                </button>
+                    <IoLogoGoogle className="text-primary text-xl shrink-0 drop-shadow-[0_0_8px_rgba(var(--theme-color),0.5)]" />
+                </div>
             </div>
 
             {/* Main Nav */}
