@@ -174,9 +174,7 @@ const LibraryModal = ({ onClose, onPlay, currentSong, cleanTitle, likedSongs, to
                         {/* Playlist Cards */}
                         {playlists.map(playlist => {
                             // Cover Logic
-                            const customCoverUrl = `${API_BASE}/api/folder/cover/${playlist.id}?t=${Date.now()}`; // specific caching might be better but this works for now if we use a state
-                            // Better: use a single cacheBuster state for the whole list or per item. 
-                            // Let's use a state in the component.
+                            const customCoverUrl = `${API_BASE}/api/folder/cover/${playlist.id}?t=${cacheBuster}`;
 
                             return (
                                 <PlaylistCard

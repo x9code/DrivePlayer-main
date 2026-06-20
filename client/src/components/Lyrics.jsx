@@ -81,11 +81,13 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
         // Inject custom styles into shadow DOM once it's ready
         const injectStyles = () => {
             if (!el.shadowRoot) return;
-            const existingStyle = el.shadowRoot.querySelector('#dp-custom-style');
-            if (existingStyle) return;
-
-            const style = document.createElement('style');
+            let style = el.shadowRoot.querySelector('#dp-custom-style');
+            if (style) return; // Prevent infinite loop
+            
+            style = document.createElement('style');
             style.id = 'dp-custom-style';
+            el.shadowRoot.prepend(style);
+
             style.textContent = `
                 :host {
                     /* Bright white for highlighted/sung text */
@@ -101,13 +103,15 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
 
                 @media (max-width: 767px) {
                     :host {
-                        --lyplus-font-size-base: 20px !important;
+                        --lyplus-font-size-base: 28px !important;
                     }
                 }
 
                 /* Inactive lines: very dim */
                 .lyrics-line {
                     opacity: 0.6 !important;
+                    transition: all 0.3s ease !important;
+                    transform-origin: left center !important;
                 }
 
                 /* Active line: full brightness */
@@ -116,6 +120,8 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
                     color: #ffffff !important;
                     background: transparent !important;
                     background-color: transparent !important;
+                    transform: scale(1.15) !important;
+                    font-size: 115% !important;
                 }
 
                 /* Hide header/footer controls for cleaner look */
@@ -123,7 +129,6 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
                     display: none !important;
                 }
             `;
-            el.shadowRoot.prepend(style);
         };
 
         let notFoundTimeout = null;

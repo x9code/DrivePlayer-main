@@ -282,8 +282,6 @@ const SectionCard = ({ folder, onFolderClick, onFolderPlay, onCoverUpload, refre
 // Main Component
 // ═══════════════════════════════════════════
 const HorizontalFolderNavigation = ({ folders, onFolderClick, onFolderPlay, onCoverUpload, refreshTrigger }) => {
-    if (!folders || folders.length === 0) return null;
-
     const scrollContainerRef = useRef(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(true);
@@ -292,6 +290,7 @@ const HorizontalFolderNavigation = ({ folders, onFolderClick, onFolderPlay, onCo
     const [coverStatuses, setCoverStatuses] = useState({});
 
     useEffect(() => {
+        if (!folders || folders.length === 0) return;
         const folderIds = folders.map(f => f.id);
 
         // Check cache first — if all folders are cached, skip API call
@@ -342,6 +341,8 @@ const HorizontalFolderNavigation = ({ folders, onFolderClick, onFolderPlay, onCo
             });
         }
     };
+
+    if (!folders || folders.length === 0) return null;
 
     return (
         <div className="relative w-full" style={{ height: 'calc(100vh - 10rem)' }}>

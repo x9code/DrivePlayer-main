@@ -354,7 +354,7 @@ const FolderRow = React.memo(({ folder, onFolderClick, onFolderPlay, uploading, 
 // Mobile three-dot action menu for song rows
 const MobileActionMenu = ({ file, isLiked, toggleLike, onAddPlaylist }) => {
     const [open, setOpen] = useState(false);
-    const menuId = React.useRef(Math.random().toString(36)).current;
+    const menuId = React.useId();
 
     // Close this menu when another one opens
     React.useEffect(() => {
@@ -624,7 +624,7 @@ const SongList = ({
                         : "flex flex-col gap-1"
                     }>
                         {folders.map(folder => {
-                            const customCoverUrl = `${API_BASE}/api/folder/cover/${folder.id}?t=${refreshTrigger || Date.now()}`;
+                            const customCoverUrl = `${API_BASE}/api/folder/cover/${folder.id}?t=${refreshTrigger || ''}`;
 
                             return viewMode === 'grid' ? (
                                 <FolderCard

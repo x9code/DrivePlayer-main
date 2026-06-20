@@ -9,9 +9,28 @@ const AuthContext = createContext(null);
 // For now, we'll set it in useEffect.
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
+    const [user, setUserState] = useState(() => {
+        const saved = localStorage.getItem('driveplayer_user');
+        try {
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            return null;
+        }
+    });
     const [token, setToken] = useState(localStorage.getItem('driveplayer_token'));
     const [loading, setLoading] = useState(true);
+
+    const setUser = (newUserOrFn) => {
+        setUserState(prev => {
+            const newUser = typeof newUserOrFn === 'function' ? newUserOrFn(prev) : newUserOrFn;
+            if (newUser) {
+                localStorage.setItem('driveplayer_user', JSON.stringify(newUser));
+            } else {
+                localStorage.removeItem('driveplayer_user');
+            }
+            return newUser;
+        });
+    };
 
     // API Base URL (same as App.jsx)
     const API_BASE = import.meta.env.VITE_API_URL || '';

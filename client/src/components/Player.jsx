@@ -406,7 +406,7 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                             {/* Artwork + Info Card Container */}
                             <div className="relative flex items-center justify-center" style={!isMobile ? { perspective: '1500px' } : undefined}>
                                 {/* 3D Flip Container — 3D transforms disabled on mobile for GPU savings */}
-                                <div className={`relative group transition-all ${isMobile ? 'duration-200' : 'duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]'} ${!isMobile ? '[transform-style:preserve-3d]' : ''} ${showLyrics && !isMobile ? 'w-60 h-60 md:w-72 md:h-72' : 'w-72 h-72 md:w-96 md:h-96'} ${!isMobile && showInfo ? '[transform:rotateY(180deg)]' : ''}`}>
+                                <div className={`relative group transition-all ${isMobile ? 'duration-200' : 'duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]'} ${!isMobile ? '[transform-style:preserve-3d]' : ''} ${showLyrics && !isMobile ? 'w-60 h-60 md:w-72 md:h-72' : 'w-80 h-80 md:w-96 md:h-96'} ${!isMobile && showInfo ? '[transform:rotateY(180deg)]' : ''}`}>
 
                                     {/* FRONT FACE: Album Art */}
                                     <div className={`absolute inset-0 w-full h-full rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] overflow-hidden bg-black/20 ring-1 ring-white/10 isolation-isolate [backface-visibility:hidden] ${showInfo ? 'pointer-events-none' : ''}`}>
