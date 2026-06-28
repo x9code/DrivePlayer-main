@@ -109,19 +109,16 @@ const AmLyricsRenderer = ({ audioRef, artist, title, duration, isExpanded, onAva
 
                 /* Inactive lines: very dim */
                 .lyrics-line {
-                    opacity: 0.6 !important;
-                    transition: all 0.3s ease !important;
-                    transform-origin: left center !important;
+                    opacity: 0.5 !important;
+                    transition: opacity 0.4s ease, color 0.4s ease !important;
                 }
 
-                /* Active line: full brightness */
+                /* Active line: full brightness, no scale/font-size to avoid jumping */
                 .lyrics-line.active {
                     opacity: 1 !important;
                     color: #ffffff !important;
                     background: transparent !important;
                     background-color: transparent !important;
-                    transform: scale(1.15) !important;
-                    font-size: 115% !important;
                 }
 
                 /* Hide header/footer controls for cleaner look */
