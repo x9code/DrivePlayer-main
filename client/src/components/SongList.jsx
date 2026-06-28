@@ -423,7 +423,7 @@ const MobileActionMenu = ({ file, isLiked, toggleLike, onAddPlaylist }) => {
     );
 };
 
-const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLiked, toggleLike, onAddPlaylist, playCount }) => {
+const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLiked, toggleLike, onAddPlaylist, playCount, onArtistClick }) => {
     return (
         <div
             onClick={() => onPlay(file)}
@@ -453,9 +453,17 @@ const SongRow = React.memo(({ file, index, isCurrent, onPlay, cleanTitle, isLike
                             return cleaned.replace(/^\d+\s*-\s*/, '').replace(/\.(mp3|m4a|flac|wav)$/i, '');
                         })()}
                     </h4>
-                    <p className="text-xs text-zinc-500 truncate group-hover:text-zinc-400">
-                        {file.artist || 'Unknown Artist'}
-                    </p>
+                    {file.artist && file.artist !== 'Unknown Artist' && onArtistClick ? (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onArtistClick(file.artist.split(/[;,\/]\s*/)[0].trim()); }}
+                            className="text-xs text-zinc-500 truncate hover:text-white hover:underline transition-colors text-left w-full"
+                            title={`Go to ${file.artist}`}
+                        >
+                            {file.artist}
+                        </button>
+                    ) : (
+                        <p className="text-xs text-zinc-500 truncate">{file.artist || 'Unknown Artist'}</p>
+                    )}
                 </div>
             </div>
 
@@ -590,7 +598,7 @@ const SongList = ({
     files, currentSong, onPlay, onFolderClick, onFolderPlay, loading,
     cleanTitle, likedSongs = [], toggleLike, onAddPlaylist,
     activePlaylist, onRenamePlaylist, playCounts = {},
-    viewMode = 'grid', onCoverUpload, uploadingFolderId, refreshTrigger
+    viewMode = 'grid', onCoverUpload, uploadingFolderId, refreshTrigger, onArtistClick
 }) => {
 
     // We use the centralized upload handler and uploading state from App.jsx
@@ -684,6 +692,7 @@ const SongList = ({
                                 toggleLike={toggleLike}
                                 onAddPlaylist={onAddPlaylist}
                                 playCount={playCounts[file.id]}
+                                onArtistClick={onArtistClick}
                             />
                         ))}
                     </div>

@@ -8,7 +8,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 
 import { cleanTitle } from '../utils/format';
 
-const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffle, repeatMode, repeatCount, repeatRemaining, onRepeatCountChange, onShuffleToggle, onRepeatToggle, likedSongs = [], toggleLike, themeColor, hasSidebar = false, onAddPlaylist }) => {
+const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffle, repeatMode, repeatCount, repeatRemaining, onRepeatCountChange, onShuffleToggle, onRepeatToggle, likedSongs = [], toggleLike, themeColor, hasSidebar = false, onAddPlaylist, onArtistClick }) => {
     const audioRef = useRef(null);
     const prevVolumeRef = useRef(1);
     const [progress, setProgress] = React.useState(0);
@@ -309,7 +309,17 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                     <IoAddCircleOutline size={18} />
                                 </button>
                             </div>
-                            <p className="text-zinc-400 text-xs truncate">{displayMeta.artist}</p>
+                            {displayMeta.artist && onArtistClick ? (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onArtistClick(displayMeta.artist.split(/[;,\/]\s*/)[0].trim()); }}
+                                    className="text-zinc-400 text-xs truncate hover:text-white hover:underline transition-colors text-left"
+                                    title={`Go to ${displayMeta.artist}`}
+                                >
+                                    {displayMeta.artist}
+                                </button>
+                            ) : (
+                                <p className="text-zinc-400 text-xs truncate">{displayMeta.artist}</p>
+                            )}
                         </div>
                     </div>
 
@@ -536,14 +546,33 @@ const Player = ({ currentSong, isPlaying, setIsPlaying, onNext, onPrev, isShuffl
                                 <div className="flex items-center justify-center gap-3">
                                     <h2 className={`font-bold text-white truncate transition-all duration-700 ${showLyrics && !isMobile ? 'text-xl max-w-[250px]' : 'text-3xl max-w-xs'}`}>{displayMeta.title}</h2>
                                 </div>
-                                <p className={`text-zinc-400 font-medium transition-all duration-700 ${showLyrics && !isMobile ? 'text-sm' : 'text-lg'}`}>
-                                    {(() => {
-                                        const artist = displayMeta.artist || '';
-                                        const parts = artist.split(/[;,]\s*/);
-                                        if (parts.length <= 3) return artist;
-                                        return parts.slice(0, 3).join(', ') + '...';
-                                    })()}
-                                </p>
+                                {displayMeta.artist && onArtistClick ? (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsExpanded(false);
+                                            onArtistClick(displayMeta.artist.split(/[;,\/]\s*/)[0].trim());
+                                        }}
+                                        className={`hover:underline transition-colors cursor-pointer hover:text-white font-medium ${showLyrics && !isMobile ? 'text-sm text-zinc-400' : 'text-lg text-zinc-400'}`}
+                                        title={`Go to ${displayMeta.artist}`}
+                                    >
+                                        {(() => {
+                                            const artist = displayMeta.artist || '';
+                                            const parts = artist.split(/[;,]\s*/);
+                                            if (parts.length <= 3) return artist;
+                                            return parts.slice(0, 3).join(', ') + '...';
+                                        })()}
+                                    </button>
+                                ) : (
+                                    <p className={`text-zinc-400 font-medium transition-all duration-700 ${showLyrics && !isMobile ? 'text-sm' : 'text-lg'}`}>
+                                        {(() => {
+                                            const artist = displayMeta.artist || '';
+                                            const parts = artist.split(/[;,]\s*/);
+                                            if (parts.length <= 3) return artist;
+                                            return parts.slice(0, 3).join(', ') + '...';
+                                        })()}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Progress Bar */}

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { IoDiscOutline, IoPersonOutline, IoMusicalNote, IoPlay, IoEllipsisVertical, IoCloudDownloadOutline, IoAlbumsOutline, IoShuffle } from 'react-icons/io5';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { IoDiscOutline, IoPersonOutline, IoMusicalNote, IoPlay, IoEllipsisVertical, IoCloudDownloadOutline, IoAlbumsOutline, IoShuffle, IoHeart, IoHeartOutline, IoAddCircleOutline } from 'react-icons/io5';
 
 const AlbumCard = React.memo(({ album, onAlbumClick, onPlay, onShuffle }) => {
     const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -414,6 +414,510 @@ export const ArtistGrid = ({ files, onArtistClick, onPlay, onShuffle }) => {
                     ))}
                 </div>
             )}
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────
+const formatSize = (bytes) => {
+    if (!bytes || bytes === 0) return '';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+const formatDuration = (seconds) => {
+    if (!seconds) return '';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
+const ArtistEqualizer = () => (
+    <div className="flex items-end gap-[3px] h-4 w-5 justify-center">
+        <div className="w-[3px] bg-white rounded-t-full" style={{ animation: 'equalize 0.8s infinite', animationDelay: '0s' }} />
+        <div className="w-[3px] bg-white rounded-t-full" style={{ animation: 'equalize 0.8s infinite', animationDelay: '0.2s' }} />
+        <div className="w-[3px] bg-white rounded-t-full" style={{ animation: 'equalize 0.8s infinite', animationDelay: '0.4s' }} />
+    </div>
+);
+
+// Shared song row used in both Popular and See-All views
+const ArtistSongRow = ({ file, index, isCurrent, onPlay, isLiked, toggleLike, onAddPlaylist, playCount, cleanTitle }) => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const title = file.title || (cleanTitle ? cleanTitle(file.name) : file.name.replace(/\.(mp3|m4a|flac|wav)$/i, ''));
+
+    return (
+        <div
+            onClick={() => onPlay(file)}
+            className={`group grid grid-cols-[32px_1fr_auto] md:grid-cols-[48px_1fr_auto] items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
+                ${isCurrent ? 'bg-white/10 border-white/8' : 'hover:bg-white/5 hover:border-white/5'}`}
+        >
+            {/* Index / Equalizer */}
+            <div className="text-zinc-500 text-center text-xs font-semibold flex justify-center items-center">
+                {isCurrent ? (
+                    <ArtistEqualizer />
+                ) : (
+                    <>
+                        <span className="group-hover:hidden tabular-nums">{index + 1}</span>
+                        <IoPlay size={13} className="hidden group-hover:block text-white" />
+                    </>
+                )}
+            </div>
+
+            {/* Thumbnail + Title */}
+            <div className="flex items-center gap-3 min-w-0">
+                <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-zinc-800 shadow-md">
+                    <img
+                        src={`${API_BASE}/api/thumbnail/${file.id}`}
+                        alt={title}
+                        className="w-full h-full object-cover"
+                        onError={e => { e.target.style.display = 'none'; }}
+                    />
+                </div>
+                <div className="min-w-0">
+                    <p className={`truncate font-medium text-[14px] leading-snug ${isCurrent ? 'text-white' : 'text-gray-200 group-hover:text-white'}`}>
+                        {title}
+                    </p>
+                    {file.album && (
+                        <p className="text-[11px] text-zinc-500 truncate mt-0.5">{file.album}</p>
+                    )}
+                </div>
+            </div>
+
+            {/* Actions + plays */}
+            <div className="flex items-center justify-end gap-1 md:gap-2">
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleLike(file); }}
+                    className={`transition-all duration-200 hover:scale-110 focus:outline-none p-1.5 rounded-full
+                        ${isLiked ? 'opacity-100 text-white' : 'opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-white'}`}
+                    title={isLiked ? 'Remove from Favorites' : 'Add to Favorites'}
+                >
+                    {isLiked ? <IoHeart size={15} /> : <IoHeartOutline size={15} />}
+                </button>
+                <button
+                    onClick={(e) => { e.stopPropagation(); onAddPlaylist(file); }}
+                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 focus:outline-none text-zinc-500 hover:text-white p-1.5 rounded-full"
+                    title="Add to Playlist"
+                >
+                    <IoAddCircleOutline size={17} />
+                </button>
+                {playCount > 0 && (
+                    <span className="hidden md:inline text-[11px] text-zinc-500 min-w-[44px] text-right tabular-nums">
+                        {playCount.toLocaleString()}
+                    </span>
+                )}
+                <span className="hidden md:inline text-[11px] text-zinc-500 min-w-[40px] text-right tabular-nums">
+                    {formatDuration(file.duration) || formatSize(file.size)}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+// Mini album card for the Albums section
+const ArtistAlbumCard = ({ album, onPlay }) => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const [imgFailed, setImgFailed] = useState(false);
+
+    return (
+        <div
+            onClick={() => onPlay(album.songs)}
+            className="group cursor-pointer flex flex-col gap-2"
+        >
+            <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-zinc-800 shadow-lg">
+                {album.firstSongId && !imgFailed ? (
+                    <img
+                        src={`${API_BASE}/api/thumbnail/${album.firstSongId}`}
+                        alt={album.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        onError={() => setImgFailed(true)}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-700 to-zinc-900">
+                        <IoDiscOutline className="text-4xl text-white/20" />
+                    </div>
+                )}
+                {/* Play overlay */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
+                    <div className="opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 bg-white rounded-full p-2.5 shadow-xl">
+                        <IoPlay size={16} className="text-black pl-0.5" />
+                    </div>
+                </div>
+            </div>
+            <div className="px-0.5">
+                <p className="font-semibold text-[13px] text-white truncate">{album.name}</p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                    {album.year ? `${album.year} · ` : ''}{album.count} {album.count === 1 ? 'song' : 'songs'}
+                </p>
+            </div>
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────────────────────
+// ArtistPage — Spotify-style artist detail view
+// ─────────────────────────────────────────────────────────
+export const ArtistPage = ({
+    files,
+    artistName,
+    currentSong,
+    onPlay,
+    likedSongs = [],
+    toggleLike,
+    onAddPlaylist,
+    playCounts = {},
+    cleanTitle,
+    onArtistPlay,
+    onArtistShuffle,
+}) => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const [heroImageUrl, setHeroImageUrl] = useState(artistImageCache[artistName] || null);
+    const [heroFailed, setHeroFailed] = useState(artistImageCache[artistName] === 'none');
+    const [heroLoaded, setHeroLoaded] = useState(false);
+    const [showAllSongs, setShowAllSongs] = useState(false);
+    const [artistBio, setArtistBio] = useState(null);
+    const [bioLoading, setBioLoading] = useState(true);
+
+    const songs = useMemo(
+        () => files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder'),
+        [files]
+    );
+
+    // Top songs — sorted by play count desc, then by name
+    const topSongs = useMemo(() => {
+        return [...songs].sort((a, b) => {
+            const ca = playCounts[a.id] || 0;
+            const cb = playCounts[b.id] || 0;
+            return cb - ca || (a.title || a.name).localeCompare(b.title || b.name);
+        });
+    }, [songs, playCounts]);
+
+    // Albums — grouped by file.album, sorted newest → oldest
+    const albums = useMemo(() => {
+        const map = {};
+
+        // Helper: extract a 4-digit year from any common metadata field
+        const extractYear = (f) => {
+            const raw = f.year || f.date || f.releaseDate || f.originalDate || '';
+            if (!raw) return null;
+            const str = String(raw).trim();
+            // "2023", "2023-01-15", "2023/01/15", "01/01/2023" etc.
+            const m = str.match(/\b(19|20)\d{2}\b/);
+            return m ? parseInt(m[0], 10) : null;
+        };
+
+        songs.forEach(f => {
+            const name = f.album || 'Unknown Album';
+            if (!map[name]) {
+                map[name] = { name, count: 0, firstSongId: null, songs: [], year: null };
+            }
+            map[name].count++;
+            map[name].songs.push(f);
+            if (!map[name].firstSongId) map[name].firstSongId = f.id;
+            // Keep the earliest year found across tracks (album year = oldest track year)
+            const y = extractYear(f);
+            if (y && (!map[name].year || y < map[name].year)) map[name].year = y;
+        });
+
+        return Object.values(map).sort((a, b) => {
+            // "Unknown Album" always goes last
+            const aUnk = a.name === 'Unknown Album';
+            const bUnk = b.name === 'Unknown Album';
+            if (aUnk && !bUnk) return 1;
+            if (!aUnk && bUnk) return -1;
+
+            // Both have year → newest first
+            if (a.year && b.year) return b.year - a.year;
+
+            // Only one has year → the one with year comes first
+            if (a.year && !b.year) return -1;
+            if (!a.year && b.year) return 1;
+
+            // Neither has year → alphabetical
+            return a.name.localeCompare(b.name);
+        });
+    }, [songs]);
+
+
+    // Fetch artist image (reuse module-level cache)
+    useEffect(() => {
+        if (heroImageUrl || heroFailed) return;
+        const doFetch = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/artist/image?name=${encodeURIComponent(artistName)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    artistImageCache[artistName] = data.imageUrl;
+                    setHeroImageUrl(data.imageUrl);
+                    return;
+                }
+            } catch { /* fall through */ }
+            if (songs.length > 0 && songs[0].id) {
+                const fb = `${API_BASE}/api/thumbnail/${songs[0].id}`;
+                artistImageCache[artistName] = fb;
+                setHeroImageUrl(fb);
+                return;
+            }
+            artistImageCache[artistName] = 'none';
+            setHeroFailed(true);
+        };
+        doFetch();
+    }, [artistName, songs]);
+
+    // Fetch artist bio from Wikipedia (no key needed, CORS-enabled)
+    useEffect(() => {
+        setBioLoading(true);
+        setArtistBio(null);
+        const controller = new AbortController();
+        const { signal } = controller;
+
+        const fetchBio = async () => {
+            try {
+                // 1️⃣ Try the direct Wikipedia page summary endpoint
+                const directUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(artistName)}`;
+                const directRes = await fetch(directUrl, { signal });
+                if (directRes.ok) {
+                    const data = await directRes.json();
+                    // Confirm it's a person/musician page, not a disambiguation
+                    if (data.extract && data.type !== 'disambiguation') {
+                        setArtistBio(data.extract);
+                        setBioLoading(false);
+                        return;
+                    }
+                }
+
+                // 2️⃣ Fallback: search Wikipedia for "{artist} musician"
+                const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(artistName + ' musician')}&format=json&origin=*&srlimit=1`;
+                const searchRes = await fetch(searchUrl, { signal });
+                if (searchRes.ok) {
+                    const searchData = await searchRes.json();
+                    const topResult = searchData?.query?.search?.[0];
+                    if (topResult) {
+                        // Load the summary of the top result
+                        const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topResult.title)}`;
+                        const summaryRes = await fetch(summaryUrl, { signal });
+                        if (summaryRes.ok) {
+                            const summaryData = await summaryRes.json();
+                            if (summaryData.extract && summaryData.type !== 'disambiguation') {
+                                setArtistBio(summaryData.extract);
+                                setBioLoading(false);
+                                return;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                if (e.name !== 'AbortError') console.warn('[ArtistPage] Bio fetch failed:', e);
+            }
+            setBioLoading(false);
+        };
+
+        fetchBio();
+        return () => controller.abort();
+    }, [artistName]);
+
+
+    const displayedSongs = showAllSongs ? topSongs : topSongs.slice(0, 5);
+    const totalPlays = songs.reduce((acc, f) => acc + (playCounts[f.id] || 0), 0);
+
+    return (
+        <div className="min-h-full animate-in fade-in duration-500">
+
+            {/* ── HERO ─────────────────────────────────────── */}
+            <div className="relative w-full overflow-hidden" style={{ minHeight: '340px', height: 'clamp(280px, 40vh, 440px)' }}>
+                {/* Blurred bg */}
+                {heroImageUrl && !heroFailed && (
+                    <img
+                        src={heroImageUrl} alt="" aria-hidden
+                        onLoad={() => setHeroLoaded(true)}
+                        onError={() => setHeroFailed(true)}
+                        className={`absolute inset-0 w-full h-full object-cover scale-110 blur-2xl transition-opacity duration-700 ${heroLoaded ? 'opacity-60' : 'opacity-0'}`}
+                    />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/50 pointer-events-none" />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col md:flex-row items-end gap-6 px-6 md:px-10 pb-8 h-full pt-12 md:pt-0">
+                    {/* Circular artist photo */}
+                    <div className="relative shrink-0 w-32 h-32 md:w-48 md:h-48 rounded-full overflow-hidden shadow-[0_12px_50px_rgba(0,0,0,0.8)] border-2 border-white/10 bg-zinc-800 flex items-center justify-center">
+                        {heroImageUrl && !heroFailed ? (
+                            <img
+                                src={heroImageUrl} alt={artistName}
+                                className={`w-full h-full object-cover transition-opacity duration-500 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                onLoad={() => setHeroLoaded(true)}
+                                onError={() => setHeroFailed(true)}
+                            />
+                        ) : (
+                            <IoPersonOutline className="text-6xl text-white/20" />
+                        )}
+                    </div>
+
+                    {/* Text + actions */}
+                    <div className="flex flex-col gap-2 min-w-0 pb-1">
+                        <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">Artist</span>
+                        <h1 className="font-black text-white leading-none tracking-tight drop-shadow-2xl"
+                            style={{ fontSize: 'clamp(2.2rem, 7vw, 5.5rem)' }}>
+                            {artistName}
+                        </h1>
+                        <p className="text-sm text-white/50 font-medium">
+                            {songs.length} {songs.length === 1 ? 'song' : 'songs'}
+                            {totalPlays > 0 && ` · ${totalPlays.toLocaleString()} plays`}
+                        </p>
+                        <div className="flex items-center gap-3 mt-2">
+                            <button
+                                onClick={() => onArtistPlay && onArtistPlay(topSongs)}
+                                className="flex items-center gap-2 bg-white text-black font-bold text-sm px-7 py-3 rounded-full hover:scale-105 hover:bg-white/90 transition-all duration-200 shadow-xl"
+                            >
+                                <IoPlay size={16} className="pl-0.5" />
+                                Play
+                            </button>
+                            <button
+                                onClick={() => onArtistShuffle && onArtistShuffle(topSongs)}
+                                className="flex items-center gap-2 bg-white/10 backdrop-blur-md text-white font-semibold text-sm px-5 py-3 rounded-full hover:scale-105 hover:bg-white/20 transition-all duration-200 border border-white/20 shadow-lg"
+                            >
+                                <IoShuffle size={16} />
+                                Shuffle
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── BODY ─────────────────────────────────────── */}
+            <div className="px-4 md:px-10 pb-8">
+
+                {/* ── POPULAR SONGS ─────────────────────────── */}
+                <section className="mt-8">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-white">Popular</h2>
+                        {songs.length > 5 && (
+                            <button
+                                onClick={() => setShowAllSongs(v => !v)}
+                                className="text-sm font-semibold text-zinc-400 hover:text-white transition-colors px-3 py-1 rounded-lg hover:bg-white/5"
+                            >
+                                {showAllSongs ? 'Show Less' : 'See All'}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Column header */}
+                    <div className="grid grid-cols-[32px_1fr_auto] md:grid-cols-[48px_1fr_auto] items-center gap-3 px-3 pb-2 border-b border-white/5 text-zinc-600 text-[10px] font-bold uppercase tracking-widest mb-1">
+                        <span className="text-center">#</span>
+                        <span>Title</span>
+                        <span className="text-right pr-1 hidden md:block">Plays</span>
+                    </div>
+
+                    <div className="flex flex-col gap-0.5">
+                        {displayedSongs.map((file, index) => (
+                            <ArtistSongRow
+                                key={file.id}
+                                file={file}
+                                index={index}
+                                isCurrent={currentSong?.id === file.id}
+                                onPlay={onPlay}
+                                isLiked={likedSongs.some(s => s.id === file.id)}
+                                toggleLike={toggleLike}
+                                onAddPlaylist={onAddPlaylist}
+                                playCount={playCounts[file.id]}
+                                cleanTitle={cleanTitle}
+                            />
+                        ))}
+                    </div>
+                </section>
+
+                {/* ── ALBUMS ────────────────────────────────── */}
+                {albums.length > 0 && (
+                    <section className="mt-12">
+                        <h2 className="text-xl font-bold text-white mb-5">
+                            {albums.length === 1 ? 'Album' : 'Albums'}
+                        </h2>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                            {albums.map(album => (
+                                <ArtistAlbumCard
+                                    key={album.name}
+                                    album={album}
+                                    onPlay={onArtistPlay}
+                                />
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {/* ── ABOUT ─────────────────────────────────── */}
+                <section className="mt-14 mb-6">
+                    <h2 className="text-xl font-bold text-white mb-5">About</h2>
+
+                    <div className="relative rounded-3xl overflow-hidden bg-zinc-900/60 border border-white/5 shadow-xl">
+                        {/* Blurred hero photo as about-section background */}
+                        {heroImageUrl && !heroFailed && (
+                            <img
+                                src={heroImageUrl} alt="" aria-hidden
+                                className="absolute inset-0 w-full h-full object-cover blur-xl opacity-20 scale-110"
+                            />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/60 to-black/90 pointer-events-none" />
+
+                        <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row gap-6 items-start">
+                            {/* Large photo */}
+                            <div className="shrink-0 w-28 h-28 md:w-36 md:h-36 rounded-2xl overflow-hidden bg-zinc-800 shadow-2xl border border-white/10">
+                                {heroImageUrl && !heroFailed ? (
+                                    <img src={heroImageUrl} alt={artistName} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <IoPersonOutline className="text-4xl text-white/20" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bio text + stats */}
+                            <div className="flex flex-col gap-4 min-w-0 flex-1">
+                                <h3 className="text-2xl font-black text-white">{artistName}</h3>
+
+                                {/* Stats row */}
+                                <div className="flex flex-wrap gap-4">
+                                    <div className="flex flex-col">
+                                        <span className="text-white font-bold text-lg">{songs.length}</span>
+                                        <span className="text-zinc-500 text-xs uppercase tracking-wider">Songs</span>
+                                    </div>
+                                    <div className="w-px bg-white/10 self-stretch" />
+                                    <div className="flex flex-col">
+                                        <span className="text-white font-bold text-lg">{albums.length}</span>
+                                        <span className="text-zinc-500 text-xs uppercase tracking-wider">Albums</span>
+                                    </div>
+                                    {totalPlays > 0 && (
+                                        <>
+                                            <div className="w-px bg-white/10 self-stretch" />
+                                            <div className="flex flex-col">
+                                                <span className="text-white font-bold text-lg">{totalPlays.toLocaleString()}</span>
+                                                <span className="text-zinc-500 text-xs uppercase tracking-wider">Total Plays</span>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Bio */}
+                                {bioLoading ? (
+                                    <div className="flex gap-2 items-center text-zinc-600 text-sm">
+                                        <div className="w-4 h-4 border-2 border-zinc-700 border-t-zinc-400 rounded-full animate-spin" />
+                                        Loading bio…
+                                    </div>
+                                ) : artistBio ? (
+                                    <p className="text-zinc-300 text-sm leading-relaxed line-clamp-6">{artistBio}</p>
+                                ) : (
+                                    <p className="text-zinc-500 text-sm italic">
+                                        No biography available for {artistName}.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
         </div>
     );
 };

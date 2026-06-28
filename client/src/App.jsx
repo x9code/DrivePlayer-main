@@ -19,6 +19,8 @@ const AuthScreen = lazy(() => import('./components/AuthScreen'));
 const ResetPasswordScreen = lazy(() => import('./components/ResetPasswordScreen'));
 const AlbumGridLazy = lazy(() => import('./components/LibraryViews').then(m => ({ default: m.AlbumGrid })));
 const ArtistGridLazy = lazy(() => import('./components/LibraryViews').then(m => ({ default: m.ArtistGrid })));
+const ArtistPageLazy = lazy(() => import('./components/LibraryViews').then(m => ({ default: m.ArtistPage })));
+const SearchResultsLazy = lazy(() => import('./components/SearchResults'));
 
 import { cleanTitle } from './utils/format';
 import { AuthProvider, useAuth } from './context/AuthContext'; // [NEW]
@@ -720,7 +722,7 @@ function AppContent() {
             autoFocus={isMobile && mobileActiveTab === 'search'}
             type="text"
             className="block w-full pl-10 pr-10 py-2.5 rounded-full leading-5 bg-white/5 border border-white/10 text-gray-200 placeholder-white/30 focus:outline-none focus:bg-white/10 focus:ring-1 focus:ring-white/20 transition-all backdrop-blur-md shadow-lg"
-            placeholder="Search..."
+            placeholder="Songs, albums, artists, folders…"
             value={searchQuery}
             onChange={handleSearchChange}
           />
@@ -871,7 +873,25 @@ function AppContent() {
       {/* Main Content - Fixed Layout for Glass Effect */}
       <main ref={mainScrollRef} className={`fixed inset-0 pt-20 overflow-y-auto custom-scrollbar md:pb-32 pb-48 z-0 transition-all duration-300 ${!isMobile ? (isSidebarCollapsed ? 'pl-20' : 'pl-64') : ''}`}>
 
-        {currentFolderId === 'profile' ? (
+        {isSearching ? (
+          <Suspense fallback={<div className="h-full flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/10 border-t-primary rounded-full animate-spin" /></div>}>
+            <SearchResultsLazy
+              query={searchQuery}
+              files={files}
+              loading={loading}
+              currentSong={currentSong}
+              onPlay={handlePlay}
+              likedSongs={likedSongs}
+              toggleLike={toggleLike}
+              onAddPlaylist={(song) => setSongToAdd(song)}
+              playCounts={playCounts}
+              cleanTitle={cleanTitleCallback}
+              onArtistClick={(name) => handleFolderClick('lib:artist:' + encodeURIComponent(name))}
+              onFolderClick={handleFolderClick}
+              onAlbumPlay={handleAlbumPlay}
+            />
+          </Suspense>
+        ) : currentFolderId === 'profile' ? (
           <Suspense fallback={<div className="h-full flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/10 border-t-primary rounded-full animate-spin" /></div>}>
             <ProfileScreen likedSongsCount={(likedSongs || []).length} playlistsCount={(playlists || []).length} />
           </Suspense>
@@ -892,6 +912,22 @@ function AppContent() {
               onArtistClick={(name) => handleFolderClick('lib:artist:' + encodeURIComponent(name))}
               onPlay={handleArtistPlay}
               onShuffle={handleArtistShuffle}
+            />
+          </Suspense>
+        ) : currentFolderId?.startsWith('lib:artist:') ? (
+          <Suspense fallback={<div className="h-full flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/10 border-t-primary rounded-full animate-spin" /></div>}>
+            <ArtistPageLazy
+              files={files}
+              artistName={decodeURIComponent(currentFolderId.substring('lib:artist:'.length))}
+              currentSong={currentSong}
+              onPlay={handlePlay}
+              likedSongs={likedSongs}
+              toggleLike={toggleLike}
+              onAddPlaylist={(song) => setSongToAdd(song)}
+              playCounts={playCounts}
+              cleanTitle={cleanTitleCallback}
+              onArtistPlay={handleArtistPlay}
+              onArtistShuffle={handleArtistShuffle}
             />
           </Suspense>
         ) : ((currentFolderId === null || currentFolderId === rootFolderId.current) && files.some(f => f.mimeType === 'application/vnd.google-apps.folder')) ? (
@@ -921,6 +957,7 @@ function AppContent() {
             onCoverUpload={handleCoverUpload}
             uploadingFolderId={uploadingFolderId}
             refreshTrigger={refreshTrigger}
+            onArtistClick={(name) => handleFolderClick('lib:artist:' + encodeURIComponent(name))}
           />
         )}
       </main>
@@ -946,6 +983,7 @@ function AppContent() {
           themeColor={themeColor}
           hasSidebar={!isMobile}
           onAddPlaylist={(song) => setSongToAdd(song)}
+          onArtistClick={(name) => handleFolderClick('lib:artist:' + encodeURIComponent(name))}
         />
       </Suspense>
 
